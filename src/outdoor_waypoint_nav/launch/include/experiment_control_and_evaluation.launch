@@ -1,0 +1,133 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    Shared Terminal-2 components for the outdoor waypoint experiments.
+    The joystick launch is included unchanged so all physical-controller and
+    keyboard controls remain exactly the same as joy_launch_control.launch.
+    The evaluator writes a final-position PNG report automatically when the
+    waypoint controller reports completion.
+  -->
+  <arg name="evaluation_enabled" default="true" />
+  <arg name="evaluation_required" default="false" />
+  <arg name="include_joy_control" default="true" />
+  <!-- K1 to K3 simulation use the same shared evaluation/logger nodes but a
+       simulation-specific joystick wrapper. -->
+  <arg name="joy_control_launch" default="$(find outdoor_waypoint_nav)/launch/outdoor/joy_launch_control.launch" />
+  <arg name="evaluation_output_dir" default="/results" />
+  <arg name="evaluation_show_plot" default="false" />
+  <arg name="evaluation_finish_delay_sec" default="0.5" />
+  <arg name="evaluation_waypoint_file" default="" />
+  <arg name="evaluation_gps_topic"
+       default="/outdoor_waypoint_nav/gps/fix_selected" />
+  <arg name="evaluation_encoder_odom_topic" default="/odometry/encoder" />
+  <arg name="evaluation_plot_gps_fixes" default="true" />
+  <arg name="evaluation_plot_encoder_odometry" default="true" />
+  <arg name="evaluation_gps_sample_min_period" default="0.2" />
+  <arg name="evaluation_show_summary_panel" default="true" />
+  <arg name="evaluation_show_title" default="true" />
+  <arg name="evaluation_legend_below" default="false" />
+  <arg name="evaluation_legend_inside_right" default="false" />
+  <arg name="evaluation_legend_rows" default="3" />
+  <arg name="evaluation_global_ekf_color" default="#dc2626" />
+  <arg name="evaluation_plot_local_ekf" default="false" />
+  <arg name="evaluation_local_ekf_topic"
+       default="/outdoor_waypoint_nav/odometry/filtered" />
+  <arg name="evaluation_local_ekf_color" default="#2563eb" />
+  <arg name="evaluation_plot_line_width_scale" default="1.0" />
+  <arg name="evaluation_save_plot_data" default="false" />
+  <arg name="evaluation_defer_waypoint_load" default="false" />
+  <arg name="evaluation_start_on_waypoint_index_zero" default="false" />
+  <arg name="evaluation_start_topic" default="" />
+  <arg name="evaluation_allow_multiple_runs" default="false" />
+  <arg name="evaluation_shutdown_after_report" default="true" />
+  <!-- CSV logger settings.  Each Terminal-2 scenario supplies its own name
+       and metadata, while the implementation stays shared here. -->
+  <arg name="trajectory_logging_enabled" default="true" />
+  <arg name="trajectory_output_dir" default="/results/experiment_runs" />
+  <arg name="trajectory_scenario_name" default="unspecified" />
+  <arg name="trajectory_scenario_metadata" default="" />
+  <arg name="trajectory_run_naming_mode" default="timestamp" />
+  <arg name="trajectory_waypoint_file" default="" />
+  <arg name="trajectory_start_topic" default="" />
+  <arg name="trajectory_allow_multiple_runs" default="false" />
+  <arg name="trajectory_outage_active_topic"
+       default="/outdoor_waypoint_nav/gnss_outage/active" />
+  <!-- The logger publishes its newly-created run directory here so the PNG
+       evaluator stores its report beside the CSV files from the same run. -->
+  <arg name="experiment_run_directory_topic"
+       default="/outdoor_waypoint_nav/experiment_logger/run_directory" />
+
+  <include if="$(arg include_joy_control)"
+           file="$(arg joy_control_launch)" />
+
+  <node if="$(arg evaluation_enabled)"
+        pkg="outdoor_waypoint_nav"
+        type="position_error.py"
+        name="real_world_localization_error_eval"
+        output="screen"
+        required="$(arg evaluation_required)">
+    <param name="odom_topic" value="/outdoor_waypoint_nav/odometry/filtered_map" />
+    <param name="finish_topic" value="/outdoor_waypoint_nav/waypoint_following_status" />
+    <param name="home_finish_topic" value="/outdoor_waypoint_nav/home_navigation_status" />
+    <param name="output_dir" value="$(arg evaluation_output_dir)" />
+    <param name="show_plot" value="$(arg evaluation_show_plot)" type="bool" />
+    <param name="auto_finish_on_status" value="true" type="bool" />
+    <param name="finish_delay_sec" value="$(arg evaluation_finish_delay_sec)" type="double" />
+    <param name="waypoint_file" value="$(arg evaluation_waypoint_file)" type="string" />
+    <param name="gps_topic" value="$(arg evaluation_gps_topic)" />
+    <param name="encoder_odom_topic" value="$(arg evaluation_encoder_odom_topic)" />
+    <param name="plot_gps_fixes" value="$(arg evaluation_plot_gps_fixes)" type="bool" />
+    <param name="plot_encoder_odometry" value="$(arg evaluation_plot_encoder_odometry)" type="bool" />
+    <param name="gps_sample_min_period"
+           value="$(arg evaluation_gps_sample_min_period)"
+           type="double" />
+    <param name="show_summary_panel"
+           value="$(arg evaluation_show_summary_panel)"
+           type="bool" />
+    <param name="show_title"
+           value="$(arg evaluation_show_title)"
+           type="bool" />
+    <param name="legend_below"
+           value="$(arg evaluation_legend_below)"
+           type="bool" />
+    <param name="legend_inside_right"
+           value="$(arg evaluation_legend_inside_right)"
+           type="bool" />
+    <param name="legend_rows"
+           value="$(arg evaluation_legend_rows)"
+           type="int" />
+    <param name="global_ekf_color" value="$(arg evaluation_global_ekf_color)" />
+    <param name="plot_local_ekf" value="$(arg evaluation_plot_local_ekf)" type="bool" />
+    <param name="local_ekf_topic" value="$(arg evaluation_local_ekf_topic)" />
+    <param name="local_ekf_color" value="$(arg evaluation_local_ekf_color)" />
+    <param name="plot_line_width_scale" value="$(arg evaluation_plot_line_width_scale)" type="double" />
+    <param name="save_plot_data" value="$(arg evaluation_save_plot_data)" type="bool" />
+    <param name="defer_waypoint_load" value="$(arg evaluation_defer_waypoint_load)" type="bool" />
+    <param name="start_on_waypoint_index_zero" value="$(arg evaluation_start_on_waypoint_index_zero)" type="bool" />
+    <param name="start_topic" value="$(arg evaluation_start_topic)" type="string" />
+    <param name="allow_multiple_runs" value="$(arg evaluation_allow_multiple_runs)" type="bool" />
+    <param name="shutdown_after_report" value="$(arg evaluation_shutdown_after_report)" type="bool" />
+    <param name="run_directory_topic" value="$(arg experiment_run_directory_topic)" type="string" />
+  </node>
+
+  <!-- Starts recording only after RB/r creates gps_waypoint and it publishes
+       waypoint_reached_index=0.  It closes the CSV files on waypoint
+       completion, home completion, or when this Terminal-2 launch is stopped. -->
+  <node if="$(arg trajectory_logging_enabled)"
+        pkg="outdoor_waypoint_nav"
+        type="experiment_trajectory_csv_logger.py"
+        name="experiment_trajectory_csv_logger"
+        output="screen">
+    <param name="scenario_name" value="$(arg trajectory_scenario_name)" />
+    <param name="scenario_metadata" value="$(arg trajectory_scenario_metadata)" />
+    <param name="run_naming_mode" value="$(arg trajectory_run_naming_mode)" />
+    <param name="output_dir" value="$(arg trajectory_output_dir)" />
+    <param name="waypoint_file" value="$(arg trajectory_waypoint_file)" type="string" />
+    <param name="start_topic" value="$(arg trajectory_start_topic)" type="string" />
+    <param name="allow_multiple_runs" value="$(arg trajectory_allow_multiple_runs)" type="bool" />
+    <param name="outage_active_topic" value="$(arg trajectory_outage_active_topic)" />
+    <param name="run_directory_topic" value="$(arg experiment_run_directory_topic)" type="string" />
+    <param name="finish_delay_sec" value="$(arg evaluation_finish_delay_sec)" type="double" />
+    <param name="home_finish_topic" value="/outdoor_waypoint_nav/home_navigation_status" />
+  </node>
+</launch>

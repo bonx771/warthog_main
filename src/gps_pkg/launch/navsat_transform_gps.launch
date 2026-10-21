@@ -1,0 +1,22 @@
+<launch>
+  <!-- STM32 GPS: cùng cấu hình truyền thông với workspace warthog_rtk. -->
+  <arg name="serial_port"
+       default="/dev/serial/by-id/usb-1a86_USB2.0-Ser_-if00-port0" />
+  <arg name="baud_rate" default="115200" />
+  <arg name="protocol" default="stm32" />
+  <arg name="heading_offset_deg" default="0.0" />
+
+  <node pkg="gps_pkg" type="gps_UBX_node.py" name="gps_UBX_node"
+        output="screen" respawn="true" respawn_delay="2.0">
+    <param name="port" value="$(arg serial_port)" />
+    <param name="baud_rate" value="$(arg baud_rate)" />
+    <param name="protocol" value="$(arg protocol)" />
+    <param name="configure_receiver" value="false" />
+    <param name="heading_offset_deg" value="$(arg heading_offset_deg)" />
+  </node>
+
+  <node pkg="gps_pkg"
+        type="gps_origin_distance_logger.py"
+        name="gps_origin_distance_logger"
+        output="screen" />
+</launch>

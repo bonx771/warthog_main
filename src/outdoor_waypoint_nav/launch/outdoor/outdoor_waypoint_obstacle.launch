@@ -1,0 +1,199 @@
+<?xml version="1.0"?>
+
+<!--
+  Outdoor waypoint navigation using the 2-D LaserScan exported from the
+  Helios 32 point cloud.
+
+  Start this launch in Terminal 1, then start scenario_obstacle.launch in
+  Terminal 2. helios32_raw_to_scan.launch starts the RoboSense driver and
+  exports /front/scan for obstacle handling.
+  No launch/config used by Scenarios 1-4 is loaded by this obstacle flow.
+-->
+<launch>
+
+    <arg name="launch_rviz" default="true" />
+    <arg name="rviz_config" default="$(dirname)/../../rviz_config/real_lidar_obstacle.rviz" />
+    <arg name="use_lidar" default="true" />
+    <arg name="lidar_cloud_topic" default="/rslidar_points" />
+    <arg name="lidar_obstacle_topic"
+         default="/outdoor_waypoint_nav/obstacle_points_obstacle" />
+    <arg name="lidar_clearing_topic"
+         default="/outdoor_waypoint_nav/clearing_points_obstacle" />
+    <arg name="lidar_scan_topic" default="/front/scan" />
+    <arg name="lidar_costmap_enable_topic"
+         default="/outdoor_waypoint_nav/lidar_costmap_enabled_obstacle" />
+    <arg name="navigation_ready_topic"
+         default="/outdoor_waypoint_nav/navigation_ready_obstacle" />
+    <arg name="lidar_frame" default="rslidar" />
+    <!-- base_link is approximately 0.30 m above ground; LiDAR is 1.23 m
+         above ground, so its nominal mounting height is 0.93 m here. -->
+    <arg name="lidar_mount_z" default="0.93" />
+    <arg name="use_gps" default="true" />
+    <!-- Stable serial identities for the current robot wiring. Do not use
+         ttyUSB numbering because Linux may swap it across boots. -->
+    <arg name="gps_serial_port"
+         default="/dev/serial/by-id/usb-1a86_USB2.0-Ser_-if00-port0" />
+    <arg name="imu_serial_port"
+         default="/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AQ00TCCT-if00-port0" />
+    <!-- Each K1-K4 launch in Terminal 2 owns exactly one publisher for this
+         selected GNSS stream. T1 only consumes it. -->
+    <arg name="gps_fix_topic" default="/outdoor_waypoint_nav/gps/fix_selected" />
+    <arg name="ekf_odom_params" default="$(dirname)/../../params/ekf_se_odom.yaml" />
+    <arg name="ekf_map_params" default="$(dirname)/../../params/ekf_se_map.yaml" />
+    <!-- Keep the clean-RTK obstacle scenario's existing behavior by default.
+         Noisy-GNSS scenarios can override these without changing this launch. -->
+    <arg name="direct_rtk_position" default="true" />
+    <arg name="angular_startup_floor" default="0.25" />
+    <arg name="enforce_in_place_angular_floor" default="false" />
+
+    <include if="$(arg use_gps)" file="$(find gps_pkg)/launch/navsat_transform_gps.launch">
+      <arg name="serial_port" value="$(arg gps_serial_port)" />
+    </include>
+
+    <include file="$(find imu_pkg)/launch/imu_ins.launch">
+      <arg name="serial_port" value="$(arg imu_serial_port)" />
+    </include>
+
+    <node pkg="tf2_ros"
+          type="static_transform_publisher"
+          name="base_link_to_lidar"
+          args="0 0 $(arg lidar_mount_z) 0 0 0 base_link $(arg lidar_frame)" />
+
+    <node pkg="tf2_ros"
+          type="static_transform_publisher"
+          name="base_link_to_gps"
+          args="0 0 0 0 0 0 base_link gps_link" />
+
+    <!-- Old direct 3-D driver path; helios32_raw_to_scan.launch now owns it. -->
+    <!-- <include if="$(arg use_lidar)" file="$(find rslidar_sdk)/launch/start.launch" /> -->
+
+    <!-- Old 3-D cloud preprocessing path, retained here but disabled. -->
+    <!--
+    <include if="$(arg use_lidar)"
+             file="$(find outdoor_waypoint_nav)/launch/include/lidar_preprocess_obstacle.launch">
+      <arg name="input_topic" value="$(arg lidar_cloud_topic)" />
+      <arg name="obstacle_topic" value="$(arg lidar_obstacle_topic)" />
+      <arg name="clearing_topic" value="$(arg lidar_clearing_topic)" />
+      <arg name="enable_topic" value="$(arg lidar_costmap_enable_topic)" />
+    </include>
+    -->
+
+    <!-- Old projection of the filtered 3-D cloud, retained but disabled. -->
+    <!--
+    <node if="$(arg use_lidar)"
+          pkg="pointcloud_to_laserscan"
+          type="pointcloud_to_laserscan_node"
+          name="obstacle_cloud_to_front_scan"
+          output="screen"
+          args="cloud_in:=$(arg lidar_obstacle_topic) scan:=$(arg lidar_scan_topic)">
+      <param name="target_frame" value="$(arg lidar_frame)" />
+      <param name="transform_tolerance" value="0.05" />
+      <param name="min_height" value="-2.0" />
+      <param name="max_height" value="1.0" />
+      <param name="angle_min" value="-3.14159" />
+      <param name="angle_max" value="3.14159" />
+      <param name="angle_increment" value="0.0058" />
+      <param name="scan_time" value="0.10" />
+      <param name="range_min" value="0.5" />
+      <param name="range_max" value="15.0" />
+      <param name="use_inf" value="true" />
+    </node>
+    -->
+
+    <!-- Start Helios 32 and export its raw cloud directly as a 2-D scan.
+         RViz stays owned by this outdoor launch to avoid opening two windows. -->
+    <include if="$(arg use_lidar)"
+             file="$(find rslidar_sdk)/launch/run_lidar/helios32_raw_to_scan.launch">
+      <arg name="run_lidar" value="true" />
+      <arg name="rviz" value="false" />
+      <arg name="cloud_topic" value="$(arg lidar_cloud_topic)" />
+      <arg name="scan_topic" value="$(arg lidar_scan_topic)" />
+      <arg name="lidar_frame" value="$(arg lidar_frame)" />
+    </include>
+
+    <include file="$(dirname)/../include/localization_run.launch">
+        <arg name="use_gps" value="$(arg use_gps)" />
+        <arg name="gps_fix_topic" value="$(arg gps_fix_topic)" />
+        <arg name="ekf_odom_params" value="$(arg ekf_odom_params)" />
+        <arg name="ekf_map_params" value="$(arg ekf_map_params)" />
+        <!-- The normal obstacle scenario uses fixed RTK directly.  A wrapper
+             may select the filtered chain for deliberately noisy GNSS. -->
+        <arg name="direct_rtk_position" value="$(arg direct_rtk_position)" />
+    </include>
+
+    <!-- Obstacle-only startup interlock. It prevents incorrectly transformed
+         startup scans from affecting VoxelLayer, then clears/rebuilds both
+         costmaps after IMU, EKFs and map/odom TF yaw are stable. -->
+    <node pkg="outdoor_waypoint_nav"
+          type="localization_guard_obstacle.py"
+          name="localization_guard_obstacle"
+          output="screen">
+      <param name="imu_topic" value="/imu/data_new" />
+      <param name="odom_topic"
+             value="/outdoor_waypoint_nav/odometry/filtered" />
+      <param name="map_odom_topic"
+             value="/outdoor_waypoint_nav/odometry/filtered_map" />
+      <param name="cloud_enable_topic" value="$(arg lidar_costmap_enable_topic)" />
+      <param name="navigation_ready_topic" value="$(arg navigation_ready_topic)" />
+      <param name="clear_costmaps_service" value="/move_base/clear_costmaps" />
+      <!-- The real INS applies its large initial yaw correction about 10 s
+           after startup. Keep the costmap locked past that deterministic jump. -->
+      <param name="minimum_startup_duration" value="12.0" />
+      <param name="stability_duration" value="4.0" />
+      <param name="yaw_tolerance_deg" value="2.0" />
+      <param name="imu_tf_yaw_tolerance_deg" value="5.0" />
+      <param name="sensor_timeout" value="0.5" />
+      <param name="max_linear_speed" value="0.05" />
+      <param name="max_angular_speed" value="0.3" />
+      <param name="costmap_warmup_duration" value="1.0" />
+      <param name="jump_angle_deg" value="5.0" />
+      <param name="jump_rate_deg_per_sec" value="45.0" />
+    </node>
+
+    <!-- Dedicated obstacle stack: Helios 2-D LaserScan -> VoxelLayer. -->
+    <include file="$(find outdoor_waypoint_nav)/launch/include/move_base_nav_obstacle.launch">
+      <arg name="cmd_vel_topic" value="/cmd_vel_raw_obstacle" />
+    </include>
+
+    <!-- Smooth normal move_base commands before forwarding them to the UGV.
+         Localization-lock and stale-input stops remain immediate. -->
+    <node pkg="outdoor_waypoint_nav"
+          type="cmd_vel_smoother_obstacle.py"
+          name="cmd_vel_smoother_obstacle"
+          output="screen">
+      <param name="input_topic" value="/cmd_vel_raw_obstacle" />
+      <param name="output_topic" value="/cmd_vel" />
+      <param name="frequency" value="30.0" />
+      <param name="linear_accel" value="0.50" />
+      <param name="linear_decel" value="0.90" />
+      <param name="angular_accel" value="0.70" />
+      <param name="angular_decel" value="1.00" />
+      <param name="max_linear" value="0.90" />
+      <param name="max_angular" value="0.40" />
+      <!-- Jump directly to the measured skid-steer breakaway command when an
+           in-place turn starts; all later changes still obey acceleration. -->
+      <param name="angular_startup_floor" value="$(arg angular_startup_floor)" />
+      <!-- Disabled by default, preserving the clean scenario exactly.  When
+           enabled, every non-zero in-place turn is kept above the skid-steer
+           breakaway command instead of applying the floor only at startup. -->
+      <param name="enforce_in_place_angular_floor"
+             value="$(arg enforce_in_place_angular_floor)"
+             type="bool" />
+      <param name="in_place_linear_threshold" value="0.02" />
+      <param name="command_timeout" value="0.50" />
+      <param name="smooth_zero_commands" value="true" />
+      <param name="navigation_ready_topic" value="$(arg navigation_ready_topic)" />
+      <param name="require_navigation_ready" value="true" />
+    </node>
+
+    <!-- Do not add another /cmd_vel -> controller relay here. The Warthog
+         already consumes /cmd_vel directly and its onboard twist_mux also
+         forwards that topic, so the old relay delivered duplicate commands. -->
+
+    <node if="$(arg launch_rviz)"
+          name="rviz"
+          pkg="rviz"
+          type="rviz"
+          args="-d $(arg rviz_config)" />
+
+</launch>

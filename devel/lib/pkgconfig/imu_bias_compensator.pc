@@ -1,0 +1,8 @@
+prefix=/home/cuong/warthog/devel
+
+Name: imu_bias_compensator
+Description: Description of imu_bias_compensator
+Version: 1.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

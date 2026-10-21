@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites tests="26" failures="0" disabled="0" errors="0" time="0" timestamp="2026-10-16T09:47:11" name="AllTests">
+  <testsuite name="TrajectoryPlannerTest" tests="3" failures="0" disabled="0" errors="0" time="0" timestamp="2026-10-16T09:47:11">
+    <testcase name="footprintObstacles" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="TrajectoryPlannerTest" />
+    <testcase name="checkGoalDistance" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="TrajectoryPlannerTest" />
+    <testcase name="checkPathDistance" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="TrajectoryPlannerTest" />
+  </testsuite>
+  <testsuite name="VelocityIteratorTest" tests="10" failures="0" disabled="0" errors="0" time="0" timestamp="2026-10-16T09:47:11">
+    <testcase name="testsingle" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="VelocityIteratorTest" />
+    <testcase name="testsingle_pos" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="VelocityIteratorTest" />
+    <testcase name="testsingle_neg" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="VelocityIteratorTest" />
+    <testcase name="test1" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="VelocityIteratorTest" />
+    <testcase name="test1_pos" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="VelocityIteratorTest" />
+    <testcase name="test1_neg" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="VelocityIteratorTest" />
+    <testcase name="test3" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="VelocityIteratorTest" />
+    <testcase name="test4" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="VelocityIteratorTest" />
+    <testcase name="test_shifted" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="VelocityIteratorTest" />
+    <testcase name="test_cranky" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="VelocityIteratorTest" />
+  </testsuite>
+  <testsuite name="FootprintHelperTest" tests="2" failures="0" disabled="0" errors="0" time="0" timestamp="2026-10-16T09:47:11">
+    <testcase name="correctFootprint" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="FootprintHelperTest" />
+    <testcase name="correctLineCells" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="FootprintHelperTest" />
+  </testsuite>
+  <testsuite name="MapGridTest" tests="11" failures="0" disabled="0" errors="0" time="0" timestamp="2026-10-16T09:47:11">
+    <testcase name="initNull" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="MapGridTest" />
+    <testcase name="operatorBrackets" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="MapGridTest" />
+    <testcase name="copyConstructor" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="MapGridTest" />
+    <testcase name="getIndex" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="MapGridTest" />
+    <testcase name="reset" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="MapGridTest" />
+    <testcase name="properGridConstruction" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="MapGridTest" />
+    <testcase name="sizeCheck" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="MapGridTest" />
+    <testcase name="adjustPlanEmpty" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="MapGridTest" />
+    <testcase name="adjustPlan" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="MapGridTest" />
+    <testcase name="adjustPlan2" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="MapGridTest" />
+    <testcase name="distancePropagation" status="run" result="completed" time="0" timestamp="2026-10-16T09:47:11" classname="MapGridTest" />
+  </testsuite>
+</testsuites>

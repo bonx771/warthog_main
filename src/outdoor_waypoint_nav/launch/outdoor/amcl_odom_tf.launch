@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    TF/odometry support for navigation on a saved map.
+
+    This launch starts the IMU and publishes only the TF chain needed by AMCL:
+      odom -> base_link   (ekf_se_odom)
+      base_link -> lidar  (static transform)
+
+    AMCL must be the only publisher of map -> odom.
+  -->
+
+  <arg name="ekf_odom_params"
+       default="$(find outdoor_waypoint_nav)/params/ekf_se_odom.yaml" />
+
+  <arg name="run_imu" default="true" />
+  <!-- Use the FTDI device identity instead of ttyUSB numbering, which can
+       change across boots even when the physical USB ports are unchanged. -->
+  <arg name="imu_serial_port"
+       default="/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AQ00TCCT-if00-port0" />
+
+  <arg name="base_frame" default="base_link" />
+  <arg name="lidar_frame" default="rslidar" />
+  <arg name="lidar_x" default="0.0" />
+  <arg name="lidar_y" default="0.0" />
+  <arg name="lidar_z" default="0.93" />
+
+  <include if="$(arg run_imu)"
+           file="$(find imu_pkg)/launch/imu_ins.launch">
+    <arg name="serial_port" value="$(arg imu_serial_port)" />
+  </include>
+
+  <group ns="outdoor_waypoint_nav">
+    <node pkg="robot_localization"
+          type="ekf_localization_node"
+          name="ekf_se_odom"
+          clear_params="true"
+          output="screen">
+      <rosparam command="load" file="$(arg ekf_odom_params)" />
+    </node>
+
+    <!-- Keep the standard EKF output odometry/filtered and also expose the
+         filtered_odom alias expected by the tracking/costmap stack. -->
+    <node pkg="topic_tools"
+          type="relay"
+          name="ekf_odom_filtered_alias"
+          args="/outdoor_waypoint_nav/odometry/filtered /outdoor_waypoint_nav/odometry/filtered_odom" />
+  </group>
+
+  <node pkg="tf2_ros"
+        type="static_transform_publisher"
+        name="base_link_to_lidar_amcl"
+        args="$(arg lidar_x) $(arg lidar_y) $(arg lidar_z) 0 0 0 $(arg base_frame) $(arg lidar_frame)" />
+</launch>

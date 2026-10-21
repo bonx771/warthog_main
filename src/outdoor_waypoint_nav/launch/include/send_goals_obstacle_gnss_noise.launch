@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    Obstacle-avoidance waypoint sender for GNSS-noise experiments.
+
+    Localization receives the selected/noisy GNSS stream from the scenario,
+    while physical waypoint completion remains tied to the accurate RTK fix.
+    Keeping these inputs separate prevents simulated position noise from
+    breaking the 0.50 m intermediate and 0.30 m final arrival conditions.
+  -->
+  <arg name="coordinates_file" default="/waypoint_files/points_obstacle.txt" />
+
+  <include file="$(find outdoor_waypoint_nav)/launch/include/send_goals_obstacle.launch">
+    <arg name="coordinates_file" value="$(arg coordinates_file)" />
+    <arg name="rtk_fix_topic" value="/gps/fix" />
+  </include>
+</launch>

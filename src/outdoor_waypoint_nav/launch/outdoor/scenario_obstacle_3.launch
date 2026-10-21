@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    Scenario Obstacle 3: LiDAR obstacle avoidance with a temporary GNSS outage.
+
+    Terminal 1 must already be running:
+      roslaunch outdoor_waypoint_nav outdoor_waypoint_obstacle.launch
+
+    This file owns /outdoor_waypoint_nav/gps/fix_selected. Do not run it at
+    the same time as any other outdoor scenario launch.
+  -->
+  <arg name="selected_fix_topic"
+       default="/outdoor_waypoint_nav/gps/fix_selected" />
+  <arg name="waypoint_file"
+       default="/waypoint_files/points_obstacle.txt" />
+
+  <!-- Match scenario_3_gnss_outage.launch: suppress GNSS after reaching WP2
+       and restore it after 20 m measured by GPS-independent odometry. -->
+  <arg name="start_after_waypoint_index" default="2" />
+  <arg name="outage_distance_m" default="20.0" />
+
+  <arg name="evaluation_enabled" default="true" />
+  <arg name="evaluation_output_dir" default="/results" />
+  <arg name="evaluation_show_plot" default="false" />
+  <arg name="evaluation_finish_delay_sec" default="0.5" />
+  <arg name="trajectory_logging_enabled" default="true" />
+  <arg name="trajectory_output_dir" default="/results/experiment_runs" />
+
+  <!-- Use move_base/LiDAR avoidance. The sender wrapper keeps raw RTK only
+       for physical waypoint-arrival checks while localization loses GNSS. -->
+  <param name="/outdoor_waypoint_nav/coordinates_file"
+         value="$(arg waypoint_file)"
+         type="string" />
+  <param name="/outdoor_waypoint_nav/send_goals_launch_file"
+         value="$(find outdoor_waypoint_nav)/launch/include/send_goals_obstacle_gnss_outage.launch"
+         type="string" />
+
+  <include file="$(find outdoor_waypoint_nav)/launch/include/gnss_outage_gate.launch">
+    <arg name="input_topic" value="/gps/fix" />
+    <arg name="output_topic" value="/gps/fix_off" />
+    <arg name="start_after_waypoint_index"
+         value="$(arg start_after_waypoint_index)" />
+    <arg name="outage_distance_m" value="$(arg outage_distance_m)" />
+  </include>
+
+  <!-- /gps/fix_off publishes normally before/after the outage and is silent
+       during it. This is the sole GNSS input selected by Terminal 1. -->
+  <node pkg="topic_tools"
+        type="relay"
+        name="scenario_obstacle_3_outage_gps_to_navsat"
+        args="/gps/fix_off $(arg selected_fix_topic)"
+        output="screen" />
+
+  <include file="$(find outdoor_waypoint_nav)/launch/include/experiment_control_and_evaluation.launch">
+    <arg name="joy_control_launch"
+         value="$(find outdoor_waypoint_nav)/launch/outdoor/joy_launch_control_obstacle.launch" />
+    <arg name="evaluation_enabled" value="$(arg evaluation_enabled)" />
+    <arg name="evaluation_output_dir" value="$(arg evaluation_output_dir)" />
+    <arg name="evaluation_show_plot" value="$(arg evaluation_show_plot)" />
+    <arg name="evaluation_finish_delay_sec"
+         value="$(arg evaluation_finish_delay_sec)" />
+    <arg name="evaluation_waypoint_file" value="$(arg waypoint_file)" />
+    <!-- This file can be empty while LB/l is collecting a new route. -->
+    <arg name="evaluation_defer_waypoint_load" value="true" />
+    <arg name="evaluation_start_on_waypoint_index_zero" value="true" />
+    <arg name="trajectory_logging_enabled"
+         value="$(arg trajectory_logging_enabled)" />
+    <arg name="trajectory_output_dir" value="$(arg trajectory_output_dir)" />
+    <arg name="trajectory_waypoint_file" value="$(arg waypoint_file)" />
+    <arg name="trajectory_scenario_name" value="scenario_obstacle_3" />
+    <arg name="trajectory_scenario_metadata"
+         value="selected_gnss=temporary_outage;reference_gnss=raw_rtk;rtk_arrival_source=/gps/fix;navigation=move_base_lidar_static_obstacle_avoidance;start_after_wp=$(arg start_after_waypoint_index);outage_distance_m=$(arg outage_distance_m)" />
+  </include>
+</launch>

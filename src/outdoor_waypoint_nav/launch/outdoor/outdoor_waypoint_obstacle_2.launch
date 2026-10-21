@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    Terminal-1 stack dedicated to scenario_obstacle_2.launch.
+
+    It reuses the complete obstacle-navigation stack, but routes the
+    deliberately noisy GNSS through the existing stationary gate and
+    motion-aided Kalman filter before the map EKF.  It also keeps non-zero
+    in-place turn commands above the skid-steer breakaway speed.
+
+    These overrides are local to this wrapper.  Running the original
+    outdoor_waypoint_obstacle.launch still uses direct RTK and its original
+    startup-only 0.25 rad/s turn floor.
+  -->
+  <arg name="launch_rviz" default="true" />
+
+  <include file="$(find outdoor_waypoint_nav)/launch/outdoor/outdoor_waypoint_obstacle.launch">
+    <arg name="launch_rviz" value="$(arg launch_rviz)" />
+    <arg name="direct_rtk_position" value="false" />
+    <arg name="angular_startup_floor" value="0.30" />
+    <arg name="enforce_in_place_angular_floor" value="true" />
+  </include>
+</launch>

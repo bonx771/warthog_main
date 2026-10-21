@@ -1,0 +1,8 @@
+prefix=/home/cuong/warthog/install
+
+Name: warthog_dual_ur_moveit_config
+Description: Description of warthog_dual_ur_moveit_config
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

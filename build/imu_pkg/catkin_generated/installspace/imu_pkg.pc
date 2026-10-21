@@ -1,0 +1,8 @@
+prefix=/home/cuong/warthog/install
+
+Name: imu_pkg
+Description: Description of imu_pkg
+Version: 0.0.0
+Cflags: -I${prefix}/include
+Libs: -L${prefix}/lib 
+Requires: message_runtime rospy sensor_msgs std_msgs

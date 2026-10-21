@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    Obstacle-avoidance waypoint sender for the GNSS-outage experiment.
+
+    The selected GNSS stream is intentionally silent during the outage, so
+    physical waypoint completion uses the independent raw RTK fix. This keeps
+    the navigation outage real for navsat/EKF without deadlocking the 0.50 m
+    intermediate and 0.30 m final arrival checks.
+  -->
+  <arg name="coordinates_file" default="/waypoint_files/points_obstacle.txt" />
+
+  <include file="$(find outdoor_waypoint_nav)/launch/include/send_goals_obstacle.launch">
+    <arg name="coordinates_file" value="$(arg coordinates_file)" />
+    <arg name="rtk_fix_topic" value="/gps/fix" />
+  </include>
+</launch>

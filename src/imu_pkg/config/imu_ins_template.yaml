@@ -1,0 +1,20 @@
+serial_port: "/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AQ00TCCT-if00-port0"
+baud_rate: 115200
+serial_timeout_sec: 0.05
+read_chunk_size: 256
+
+frame_id: "imu_link"
+state_topic: "/imu/data_new"
+yaw_sign: -1.0
+
+orientation_covariance_diagonal: [0.2, 0.2, 0.1]
+angular_velocity_covariance_diagonal: [0.05, 0.05, 0.0002]
+linear_acceleration_covariance_diagonal: [0.1, 0.1, 0.1]
+
+# Bật lại luồng state 25 Hz mỗi khi imu_node mở cổng. Không gửi lệnh 0x86
+# gyrocompass/calibration ở đây để tránh tự hiệu chuẩn lại mỗi lần launch.
+startup_commands:
+  - "10 10 84 0C 31 81 00 00 00 00 00 00"
+  - "10 10 84 0C CA 01 00 19 00 00 00 00"
+  - "10 10 84 0C CA 00 00 19 00 00 00 01"
+startup_command_delay_sec: 0.05

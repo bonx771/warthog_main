@@ -1,0 +1,8 @@
+prefix=/home/cuong/warthog/install
+
+Name: ekf_gps_goal_controller
+Description: Description of ekf_gps_goal_controller
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

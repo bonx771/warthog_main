@@ -1,0 +1,1 @@
+/usr/bin/aarch64-linux-gnu-g++  -g  -rdynamic CMakeFiles/line_iterator.dir/test/line_iterator_test.cpp.o  -o /home/cuong/warthog/devel/lib/base_local_planner/line_iterator   -L/home/cuong/warthog/build/gtest  -Wl,-rpath,/home/cuong/warthog/build/gtest:/home/cuong/warthog/build/gtest/lib ../../gtest/lib/libgtestd.so -lpthread 
