@@ -1,7 +1,7 @@
 frequency: 30
 sensor_timeout: 0.2
 two_d_mode: true
-transform_time_offset: 0.05
+transform_time_offset: 0.10
 transform_timeout: 0.0
 reset_on_time_jump: true
 print_diagnostics: true
