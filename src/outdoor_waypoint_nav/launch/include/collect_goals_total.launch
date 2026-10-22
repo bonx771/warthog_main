@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Collection isolated from the RTK-only obstacle collector. -->
+  <arg name="collect_button_num" default="3" />
+  <arg name="collect_button_sym" default="Y" />
+  <arg name="end_button_num" default="6" />
+  <arg name="end_button_sym" default="BACK" />
+  <arg name="coordinates_file" default="/waypoint_files/points_total.txt" />
+  <!-- Record the receiver latitude/longitude itself.  The selected-fix relay
+       is used by localization, but waypoint collection must remain tied to
+       the raw geographic measurement. -->
+  <arg name="raw_gps_topic" default="/gps/fix" />
+  <!-- Accept normal GPS while still rejecting unusably uncertain positions. -->
+  <arg name="max_horizontal_stddev" default="5.0" />
+  <!-- The GPS/map check adapts to measurement quality:
+       limit = clamp(max(minimum, multiplier * horizontal sigma), maximum). -->
+  <arg name="projection_min_limit_m" default="1.0" />
+  <arg name="projection_sigma_multiplier" default="3.0" />
+  <arg name="projection_max_limit_m" default="15.0" />
+  <!-- Improve a normal/FLOAT fix without borrowing base_link position:
+       reject the farthest raw samples in UTM, then weight the rest by their
+       receiver covariance. -->
+  <arg name="outlier_trim_fraction" default="0.20" />
+  <arg name="covariance_weight_floor_m2" default="0.04" />
+
+  <node ns="/outdoor_waypoint_nav"
+        pkg="outdoor_waypoint_nav"
+        type="total_collect_gps_waypoints.py"
+        name="total_collect_gps_waypoints"
+        output="screen" />
+
+  <param name="/outdoor_waypoint_nav/coordinates_file"
+         value="$(arg coordinates_file)" type="string" />
+  <param name="/outdoor_waypoint_nav/collect_button_num"
+         value="$(arg collect_button_num)" type="int" />
+  <param name="/outdoor_waypoint_nav/end_button_num"
+         value="$(arg end_button_num)" type="int" />
+  <param name="/outdoor_waypoint_nav/collect_button_sym"
+         value="$(arg collect_button_sym)" type="string" />
+  <param name="/outdoor_waypoint_nav/end_button_sym"
+         value="$(arg end_button_sym)" type="string" />
+  <param name="/outdoor_waypoint_nav/gps_topic"
+         value="$(arg raw_gps_topic)" type="string" />
+  <param name="/outdoor_waypoint_nav/waypoint_marker_frame"
+         value="map" type="string" />
+  <param name="/outdoor_waypoint_nav/waypoint_marker_topic"
+         value="/outdoor_waypoint_nav/collected_waypoints" type="string" />
+  <param name="/outdoor_waypoint_nav/waypoint_marker_scale"
+         value="0.7" type="double" />
+  <param name="/outdoor_waypoint_nav/waypoint_robot_frame"
+         value="base_link" type="string" />
+  <param name="/outdoor_waypoint_nav/waypoint_projection_warn_distance_m"
+         value="$(arg projection_min_limit_m)" type="double" />
+  <param name="/outdoor_waypoint_nav/waypoint_projection_sigma_multiplier"
+         value="$(arg projection_sigma_multiplier)" type="double" />
+  <param name="/outdoor_waypoint_nav/waypoint_projection_max_distance_m"
+         value="$(arg projection_max_limit_m)" type="double" />
+  <param name="/outdoor_waypoint_nav/waypoint_outlier_trim_fraction"
+         value="$(arg outlier_trim_fraction)" type="double" />
+  <param name="/outdoor_waypoint_nav/waypoint_covariance_weight_floor_m2"
+         value="$(arg covariance_weight_floor_m2)" type="double" />
+  <param name="/outdoor_waypoint_nav/waypoint_rtk_max_horizontal_stddev"
+         value="$(arg max_horizontal_stddev)" type="double" />
+  <param name="/outdoor_waypoint_nav/waypoint_rtk_fix_timeout"
+         value="1.5" type="double" />
+  <param name="/outdoor_waypoint_nav/waypoint_collection_require_navigation_ready"
+         value="true" type="bool" />
+  <param name="/outdoor_waypoint_nav/navigation_ready_topic"
+         value="/outdoor_waypoint_nav/navigation_ready_obstacle" type="string" />
+  <param name="/outdoor_waypoint_nav/waypoint_sample_duration"
+         value="5.0" type="double" />
+  <param name="/outdoor_waypoint_nav/waypoint_min_samples"
+         value="5" type="int" />
+  <param name="/outdoor_waypoint_nav/waypoint_min_distance_m"
+         value="1.0" type="double" />
+</launch>

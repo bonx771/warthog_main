@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Waypoint sender for FIXED, FLOAT, normal GPS, and dead reckoning. -->
+  <arg name="coordinates_file" default="/waypoint_files/points_total.txt" />
+  <arg name="waypoint_advance_radius" default="0.80" />
+
+  <include file="$(find outdoor_waypoint_nav)/launch/include/send_goals_obstacle.launch">
+    <arg name="coordinates_file" value="$(arg coordinates_file)" />
+  </include>
+
+  <!-- Do not wait for the RTK-only arrival checker.  Completion is based on
+       the fused map pose, which continues through a GNSS outage from odom+IMU. -->
+  <param name="/outdoor_waypoint_nav/rtk_arrival_enabled"
+         value="false"
+         type="bool" />
+  <param name="/outdoor_waypoint_nav/waypoint_advance_radius"
+         value="$(arg waypoint_advance_radius)"
+         type="double" />
+</launch>

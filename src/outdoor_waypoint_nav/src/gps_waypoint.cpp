@@ -103,6 +103,7 @@ double direct_waypoint_near_goal_heading_radius = 0.0;
 double direct_waypoint_near_goal_max_speed = 0.08;
 double direct_waypoint_near_goal_max_angular_speed = 0.15;
 bool rtk_arrival_enabled = false;
+bool degraded_gnss_arrival_enabled = false;
 std::string rtk_fix_topic = "/outdoor_waypoint_nav/gps/fix_selected";
 double rtk_arrival_radius = 0.10;
 double rtk_final_arrival_radius = 0.10;
@@ -191,19 +192,17 @@ void rtkFixCB(const sensor_msgs::NavSatFix::ConstPtr& fix_msg)
     have_latest_rtk_fix = true;
 }
 
-bool latestRtkFixIsUsable(std::string& reason)
+bool latestGnssFixIsUsable(std::string& reason)
 {
     if(!have_latest_rtk_fix)
     {
-        reason = "no RTK fix received";
+        reason = "no GNSS fix received";
         return false;
     }
 
-    // This driver reports RTK FLOAT/FIXED as GBAS. Covariance below then
-    // distinguishes centimetre-level RTK FIXED from the 1 m FLOAT floor.
-    if(latest_rtk_fix.status.status < sensor_msgs::NavSatStatus::STATUS_GBAS_FIX)
+    if(latest_rtk_fix.status.status < sensor_msgs::NavSatStatus::STATUS_FIX)
     {
-        reason = "NavSatFix status is not RTK (GBAS)";
+        reason = "GNSS receiver reports NO_FIX";
         return false;
     }
 
@@ -212,14 +211,33 @@ bool latestRtkFixIsUsable(std::string& reason)
        latest_rtk_fix.latitude < -90.0 || latest_rtk_fix.latitude > 90.0 ||
        latest_rtk_fix.longitude < -180.0 || latest_rtk_fix.longitude > 180.0)
     {
-        reason = "RTK latitude/longitude is invalid";
+        reason = "GNSS latitude/longitude is invalid";
         return false;
     }
 
     if(rtk_fix_timeout > 0.0 &&
        (ros::Time::now() - latest_rtk_fix_received_at).toSec() > rtk_fix_timeout)
     {
-        reason = "RTK fix is stale";
+        reason = "GNSS fix is stale";
+        return false;
+    }
+
+    reason.clear();
+    return true;
+}
+
+bool latestRtkFixIsUsable(std::string& reason)
+{
+    if(!latestGnssFixIsUsable(reason))
+    {
+        return false;
+    }
+
+    // This driver reports RTK FLOAT/FIXED as GBAS. Covariance below then
+    // distinguishes centimetre-level RTK FIXED from the 1 m FLOAT floor.
+    if(latest_rtk_fix.status.status < sensor_msgs::NavSatStatus::STATUS_GBAS_FIX)
+    {
+        reason = "NavSatFix status is not RTK (GBAS)";
         return false;
     }
 
@@ -252,16 +270,52 @@ bool latestRtkFixIsUsable(std::string& reason)
     return true;
 }
 
+bool latestArrivalFixIsUsable(std::string& reason, bool& precise_rtk)
+{
+    std::string rtk_reason;
+    if(latestRtkFixIsUsable(rtk_reason))
+    {
+        precise_rtk = true;
+        reason.clear();
+        return true;
+    }
+
+    precise_rtk = false;
+    if(!degraded_gnss_arrival_enabled)
+    {
+        reason = rtk_reason;
+        return false;
+    }
+
+    std::string gnss_reason;
+    if(!latestGnssFixIsUsable(gnss_reason))
+    {
+        reason = gnss_reason;
+        return false;
+    }
+
+    reason = rtk_reason;
+    return true;
+}
+
 bool getRtkDistanceToGoal(
     double goal_latitude,
     double goal_longitude,
     double& distance)
 {
     std::string invalid_reason;
-    if(!latestRtkFixIsUsable(invalid_reason))
+    bool precise_rtk = false;
+    if(!latestArrivalFixIsUsable(invalid_reason, precise_rtk))
     {
-        ROS_WARN_THROTTLE(2.0, "RTK arrival check unavailable: %s.", invalid_reason.c_str());
+        ROS_WARN_THROTTLE(2.0, "GNSS arrival check unavailable: %s.", invalid_reason.c_str());
         return false;
+    }
+    if(!precise_rtk)
+    {
+        ROS_WARN_THROTTLE(
+            2.0,
+            "Using RTK FLOAT/GPS-normal waypoint arrival because precise RTK is unavailable: %s.",
+            invalid_reason.c_str());
     }
 
     double goal_northing = 0.0;
@@ -334,7 +388,7 @@ bool rtkArrivalConfirmed(
 
     ROS_INFO_THROTTLE(
         1.0,
-        "Waypoint %d/%d RTK distance: %.3f m (arrival <= %.3f m).",
+        "Waypoint %d/%d GNSS distance: %.3f m (arrival <= %.3f m).",
         waypoint_index,
         total_waypoints,
         distance,
@@ -351,7 +405,7 @@ bool rtkArrivalConfirmed(
     {
         rtk_arrival_started_at = now;
         ROS_INFO(
-            "Waypoint %d/%d entered RTK arrival radius: %.3f m <= %.3f m.",
+            "Waypoint %d/%d entered GNSS arrival radius: %.3f m <= %.3f m.",
             waypoint_index,
             total_waypoints,
             distance,
@@ -365,7 +419,7 @@ bool rtkArrivalConfirmed(
     }
 
     ROS_INFO(
-        "Waypoint %d/%d confirmed reached by RTK: %.3f m <= %.3f m for %.2f s.",
+        "Waypoint %d/%d confirmed reached by GNSS: %.3f m <= %.3f m for %.2f s.",
         waypoint_index,
         total_waypoints,
         distance,
@@ -1711,6 +1765,7 @@ int main(int argc, char** argv)
     ros::param::param<double>("/outdoor_waypoint_nav/direct_waypoint_near_goal_max_speed", direct_waypoint_near_goal_max_speed, 0.08);
     ros::param::param<double>("/outdoor_waypoint_nav/direct_waypoint_near_goal_max_angular_speed", direct_waypoint_near_goal_max_angular_speed, 0.15);
     ros::param::param<bool>("/outdoor_waypoint_nav/rtk_arrival_enabled", rtk_arrival_enabled, false);
+    ros::param::param<bool>("/outdoor_waypoint_nav/degraded_gnss_arrival_enabled", degraded_gnss_arrival_enabled, false);
     ros::param::param<std::string>("/outdoor_waypoint_nav/rtk_fix_topic", rtk_fix_topic, "/outdoor_waypoint_nav/gps/fix_selected");
     ros::param::param<double>("/outdoor_waypoint_nav/rtk_arrival_radius", rtk_arrival_radius, 0.10);
     ros::param::param<double>("/outdoor_waypoint_nav/rtk_final_arrival_radius", rtk_final_arrival_radius, 0.10);
@@ -1752,25 +1807,27 @@ int main(int argc, char** argv)
     {
         subRtkFix = n.subscribe(rtk_fix_topic, 20, rtkFixCB);
         ROS_INFO(
-            "RTK waypoint arrival enabled: topic=%s intermediate_radius=%.3fm final_radius=%.3fm hold=%.2fs timeout=%.2fs max_stddev=%.3fm.",
+            "GNSS waypoint arrival enabled: topic=%s intermediate_radius=%.3fm final_radius=%.3fm hold=%.2fs timeout=%.2fs precise_rtk_max_stddev=%.3fm degraded_gnss=%s.",
             rtk_fix_topic.c_str(),
             rtk_arrival_radius,
             rtk_final_arrival_radius,
             rtk_arrival_hold_time,
             rtk_fix_timeout,
-            rtk_max_horizontal_stddev);
+            rtk_max_horizontal_stddev,
+            degraded_gnss_arrival_enabled ? "enabled" : "disabled");
 
         const ros::Time wait_started = ros::Time::now();
         ros::Rate fix_wait_rate(20.0);
         std::string invalid_reason;
-        while(ros::ok() && !latestRtkFixIsUsable(invalid_reason))
+        bool precise_rtk = false;
+        while(ros::ok() && !latestArrivalFixIsUsable(invalid_reason, precise_rtk))
         {
             ros::spinOnce();
             if(rtk_initial_fix_wait_timeout > 0.0 &&
                (ros::Time::now() - wait_started).toSec() >= rtk_initial_fix_wait_timeout)
             {
                 ROS_ERROR(
-                    "No usable RTK fix on %s after %.1fs: %s. Waypoint following will not start.",
+                    "No usable GNSS fix on %s after %.1fs: %s. Waypoint following will not start.",
                     rtk_fix_topic.c_str(),
                     rtk_initial_fix_wait_timeout,
                     invalid_reason.c_str());
@@ -1782,7 +1839,7 @@ int main(int argc, char** argv)
             }
             ROS_WARN_THROTTLE(
                 2.0,
-                "Waiting for usable RTK fix on %s: %s.",
+                "Waiting for usable GNSS fix on %s: %s.",
                 rtk_fix_topic.c_str(),
                 invalid_reason.c_str());
             fix_wait_rate.sleep();
@@ -2156,6 +2213,36 @@ int main(int argc, char** argv)
             {
                 if(rtk_arrival_enabled)
                 {
+                    std::string precise_rtk_reason;
+                    std::string degraded_gnss_reason;
+                    const bool precise_rtk_available =
+                        latestRtkFixIsUsable(precise_rtk_reason);
+                    const bool degraded_gnss_available =
+                        degraded_gnss_arrival_enabled &&
+                        !precise_rtk_available &&
+                        latestGnssFixIsUsable(degraded_gnss_reason);
+                    if(degraded_gnss_available)
+                    {
+                        reachedWaypoints++;
+                        publishReachedWaypointIndex(
+                            pubWaypointReachedIndex,
+                            currentWaypointIndex);
+                        if(!marker_turned_green)
+                        {
+                            publishReachedWaypointMarker(
+                                pubWaypointMarkers,
+                                map_point,
+                                currentWaypointIndex);
+                        }
+                        ROS_WARN(
+                            "Accepted move_base completion for waypoint %d/%d using RTK FLOAT/GPS-normal fallback because precise RTK is unavailable: %s.",
+                            currentWaypointIndex,
+                            totalWaypoints,
+                            precise_rtk_reason.c_str());
+                        waypoint_reached = true;
+                        break;
+                    }
+
                     double rtk_distance = 0.0;
                     geometry_msgs::PointStamped corrected_map_point;
                     if(buildRtkCorrectedMapWaypoint(

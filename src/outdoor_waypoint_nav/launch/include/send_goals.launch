@@ -68,6 +68,7 @@
   <!-- Scenario-specific launches may enable RTK as the authoritative arrival
        check. The base sender keeps legacy move_base completion by default. -->
   <param name="/outdoor_waypoint_nav/rtk_arrival_enabled" value="false" type="bool" />
+  <param name="/outdoor_waypoint_nav/degraded_gnss_arrival_enabled" value="false" type="bool" />
   <param name="/outdoor_waypoint_nav/rtk_fix_topic" value="/outdoor_waypoint_nav/gps/fix_selected" type="string" />
   <param name="/outdoor_waypoint_nav/rtk_arrival_radius" value="0.10" type="double" />
   <param name="/outdoor_waypoint_nav/rtk_final_arrival_radius" value="0.10" type="double" />

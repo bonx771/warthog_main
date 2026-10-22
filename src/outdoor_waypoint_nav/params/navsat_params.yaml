@@ -5,7 +5,7 @@ navsat_transform:
   # was the cause of the observed 114-degree map jump.
   delay: 15.0
   magnetic_declination_radians: -0.0304567
-  yaw_offset: -1.9544
+  yaw_offset: -1.567
   zero_altitude: true
   broadcast_utm_transform: true
   publish_filtered_gps: true

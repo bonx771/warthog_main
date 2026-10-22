@@ -34,14 +34,14 @@
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_enabled"
          value="true"
          type="bool" />
-  <!-- Coarse IMU-yaw turn before a sharp segment. It deliberately exits with
-       a large residual error; this is path alignment, not waypoint-heading
-       accuracy. The direction is latched so +/-pi noise cannot reverse it. -->
+  <!-- IMU-yaw alignment before a segment. Enter above 45 degrees and finish
+       within 35 degrees so control hands off into SLOW_CURVE.
+       The direction is latched so +/-pi noise cannot reverse it. -->
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_angle_threshold"
-         value="1.309"
+         value="0.785"
          type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_exit_angle_threshold"
-         value="0.524"
+         value="0.611"
          type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_min_goal_distance"
          value="0.80"
@@ -50,10 +50,10 @@
          value="0.45"
          type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_min_angular_speed"
-         value="0.25"
+         value="0.30"
          type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_max_angular_speed"
-         value="0.40"
+         value="0.48"
          type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_timeout"
          value="20.0"
@@ -65,10 +65,13 @@
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_scan_timeout"
          value="0.50"
          type="double" />
-  <!-- RTK is the source of truth for physical waypoint completion. Intermediate
-       points hand off at 0.50 m; the final point uses a 0.30 m
-       radius. Heading is ignored for both cases. -->
+  <!-- GNSS is the source of truth for physical waypoint completion. Precise
+       RTK uses the 1.00/0.70 m radii below. RTK FLOAT and GPS-normal may also
+       confirm by radius, or fall back to move_base SUCCEEDED if noisier. -->
   <param name="/outdoor_waypoint_nav/rtk_arrival_enabled"
+         value="true"
+         type="bool" />
+  <param name="/outdoor_waypoint_nav/degraded_gnss_arrival_enabled"
          value="true"
          type="bool" />
   <param name="/outdoor_waypoint_nav/rtk_fix_topic"
@@ -81,10 +84,10 @@
          value="0.20"
          type="double" />
   <param name="/outdoor_waypoint_nav/rtk_arrival_radius"
-         value="0.50"
+         value="1.00"
          type="double" />
   <param name="/outdoor_waypoint_nav/rtk_final_arrival_radius"
-         value="0.30"
+         value="0.70"
          type="double" />
   <param name="/outdoor_waypoint_nav/rtk_arrival_hold_time"
          value="0.0"

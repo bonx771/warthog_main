@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    All-GNSS variant of outdoor_waypoint_obstacle.launch.
+
+    The original obstacle launch remains untouched.  This wrapper selects the
+    existing covariance-aware GNSS filtering chain instead of feeding RTK
+    directly into the map EKF.  RTK FIXED still works, while RTK FLOAT and
+    normal GPS are down-weighted according to their reported covariance.  If
+    fixes disappear, EKF map localization continues from wheel odometry + IMU.
+  -->
+  <arg name="launch_rviz" default="true" />
+  <arg name="rviz_config"
+       default="$(dirname)/../../rviz_config/real_lidar_obstacle.rviz" />
+  <arg name="use_lidar" default="true" />
+  <arg name="lidar_cloud_topic" default="/rslidar_points" />
+  <arg name="lidar_obstacle_topic"
+       default="/outdoor_waypoint_nav/obstacle_points_obstacle" />
+  <arg name="lidar_clearing_topic"
+       default="/outdoor_waypoint_nav/clearing_points_obstacle" />
+  <arg name="lidar_scan_topic" default="/front/scan" />
+  <arg name="lidar_costmap_enable_topic"
+       default="/outdoor_waypoint_nav/lidar_costmap_enabled_obstacle" />
+  <arg name="navigation_ready_topic"
+       default="/outdoor_waypoint_nav/navigation_ready_obstacle" />
+  <arg name="lidar_frame" default="rslidar" />
+  <arg name="lidar_mount_z" default="0.93" />
+  <arg name="use_gps" default="true" />
+  <arg name="gps_serial_port"
+       default="/dev/serial/by-id/usb-1a86_USB2.0-Ser_-if00-port0" />
+  <arg name="imu_serial_port"
+       default="/dev/serial/by-id/usb-FTDI_FT232R_USB_UART_AQ00TCCT-if00-port0" />
+  <arg name="gps_fix_topic"
+       default="/outdoor_waypoint_nav/gps/fix_selected" />
+  <arg name="ekf_odom_params"
+       default="$(dirname)/../../params/ekf_se_odom.yaml" />
+  <arg name="ekf_map_params"
+       default="$(dirname)/../../params/ekf_se_map.yaml" />
+  <arg name="angular_startup_floor" default="0.25" />
+  <arg name="enforce_in_place_angular_floor" default="false" />
+  <!-- A loose goal radius is appropriate when GPS sigma is 1-2 m. -->
+  <arg name="xy_goal_tolerance" default="0.80" />
+
+  <include file="$(dirname)/outdoor_waypoint_obstacle.launch">
+    <arg name="launch_rviz" value="$(arg launch_rviz)" />
+    <arg name="rviz_config" value="$(arg rviz_config)" />
+    <arg name="use_lidar" value="$(arg use_lidar)" />
+    <arg name="lidar_cloud_topic" value="$(arg lidar_cloud_topic)" />
+    <arg name="lidar_obstacle_topic" value="$(arg lidar_obstacle_topic)" />
+    <arg name="lidar_clearing_topic" value="$(arg lidar_clearing_topic)" />
+    <arg name="lidar_scan_topic" value="$(arg lidar_scan_topic)" />
+    <arg name="lidar_costmap_enable_topic"
+         value="$(arg lidar_costmap_enable_topic)" />
+    <arg name="navigation_ready_topic" value="$(arg navigation_ready_topic)" />
+    <arg name="lidar_frame" value="$(arg lidar_frame)" />
+    <arg name="lidar_mount_z" value="$(arg lidar_mount_z)" />
+    <arg name="use_gps" value="$(arg use_gps)" />
+    <arg name="gps_serial_port" value="$(arg gps_serial_port)" />
+    <arg name="imu_serial_port" value="$(arg imu_serial_port)" />
+    <arg name="gps_fix_topic" value="$(arg gps_fix_topic)" />
+    <arg name="ekf_odom_params" value="$(arg ekf_odom_params)" />
+    <arg name="ekf_map_params" value="$(arg ekf_map_params)" />
+    <arg name="direct_rtk_position" value="false" />
+    <arg name="angular_startup_floor" value="$(arg angular_startup_floor)" />
+    <arg name="enforce_in_place_angular_floor"
+         value="$(arg enforce_in_place_angular_floor)" />
+  </include>
+
+  <!-- Override only this new launch's move_base instance. -->
+  <param name="/move_base/TrajectoryPlannerROS/xy_goal_tolerance"
+         value="$(arg xy_goal_tolerance)"
+         type="double" />
+</launch>

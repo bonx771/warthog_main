@@ -15,3 +15,7 @@ topics:
   topic   : cmd_vel
   timeout : 0.5
   priority: 1
+- name    : hmi_joystick
+  topic   : /hmi/joystick_cmd_vel
+  timeout : 0.5
+  priority: 9

@@ -44,6 +44,21 @@ LAUNCH_MAP = {
             WORKSPACE_SETUP_EKF
         ),
     ],
+    # Navigation và scenario vật cản nằm trong workspace warthog.
+    "outdoor_waypoint_obstacle": [
+        "bash",
+        "-lc",
+        "source {} && roslaunch outdoor_waypoint_nav outdoor_waypoint_obstacle.launch".format(
+            WORKSPACE_SETUP_EKF
+        ),
+    ],
+    "scenario_obstacle": [
+        "bash",
+        "-lc",
+        "source {} && roslaunch outdoor_waypoint_nav scenario_obstacle.launch".format(
+            WORKSPACE_SETUP_EKF
+        ),
+    ],
     # Khởi động Lidar
     "rslidar_start": [
         "bash",
