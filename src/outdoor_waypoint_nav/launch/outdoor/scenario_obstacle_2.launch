@@ -4,10 +4,15 @@
     Scenario Obstacle 2: LiDAR obstacle avoidance with correlated GNSS noise.
 
     Terminal 1 must already be running:
-      roslaunch outdoor_waypoint_nav outdoor_waypoint_obstacle_2.launch
+      roslaunch outdoor_waypoint_nav outdoor_waypoint_obstacle.launch
+
+    This is the noisy-GNSS counterpart of scenario_obstacle.launch. It keeps
+    the same obstacle navigation, controls, logging and evaluation flow, but
+    sends /gps/fix through the correlated-noise node before Terminal 1 uses it
+    for localization.
 
     This file owns /outdoor_waypoint_nav/gps/fix_selected. Do not run it at
-    the same time as scenario_obstacle.launch, which owns the same topic.
+    the same time as scenario_obstacle.launch or another outdoor scenario.
   -->
   <arg name="selected_fix_topic"
        default="/outdoor_waypoint_nav/gps/fix_selected" />
@@ -29,8 +34,10 @@
   <arg name="trajectory_logging_enabled" default="true" />
   <arg name="trajectory_output_dir" default="/results/experiment_runs" />
 
-  <!-- Configure the obstacle route and make RB/r start the move_base sender
-       whose arrival check deliberately uses the raw /gps/fix RTK stream. -->
+  <!-- Keep the obstacle route and move_base sender used by
+       scenario_obstacle.launch. This small sender wrapper changes only the
+       arrival reference to raw /gps/fix, so injected localization noise cannot
+       falsely declare a waypoint reached or deadlock the experiment. -->
   <param name="/outdoor_waypoint_nav/coordinates_file"
          value="$(arg waypoint_file)"
          type="string" />
@@ -50,9 +57,9 @@
          value="$(arg noise_stop_at_waypoint_index)" />
   </include>
 
-  <!-- navsat_transform/global EKF sees only this selected, possibly noisy
-       stream. /gps/fix remains available as clean RTK reference and arrival
-       truth; do not add a second publisher to selected_fix_topic. -->
+  <!-- The original outdoor_waypoint_obstacle.launch consumes this selected
+       stream directly. /gps/fix remains available as the clean RTK reference;
+       do not add a second publisher to selected_fix_topic. -->
   <node pkg="topic_tools"
         type="relay"
         name="scenario_obstacle_2_noisy_gps_to_navsat"
@@ -77,6 +84,6 @@
     <arg name="trajectory_waypoint_file" value="$(arg waypoint_file)" />
     <arg name="trajectory_scenario_name" value="scenario_obstacle_2" />
     <arg name="trajectory_scenario_metadata"
-         value="selected_gnss=correlated_noisy;reference_gnss=raw_rtk;rtk_arrival_source=/gps/fix;localization_gnss=stationary_gate_motion_aided_kalman;continuous_turn_floor=0.30;navigation=move_base_lidar_static_obstacle_avoidance;alpha=$(arg alpha);innovation_sigma_m=$(arg innovation_sigma_m);activation_mode=$(arg activation_mode);noise_start_after_wp=$(arg noise_start_after_waypoint_index);noise_stop_at_wp=$(arg noise_stop_at_waypoint_index)" />
+         value="selected_gnss=correlated_noisy;reference_gnss=raw_rtk;rtk_arrival_source=/gps/fix;localization_gnss=direct_selected_fix;navigation=move_base_lidar_static_obstacle_avoidance;alpha=$(arg alpha);innovation_sigma_m=$(arg innovation_sigma_m);activation_mode=$(arg activation_mode);noise_start_after_wp=$(arg noise_start_after_waypoint_index);noise_stop_at_wp=$(arg noise_stop_at_waypoint_index)" />
   </include>
 </launch>

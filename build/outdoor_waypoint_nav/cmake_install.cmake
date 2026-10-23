@@ -65,6 +65,10 @@ if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/outdoor_waypoint_nav" TYPE PROGRAM FILES "/home/cuong/warthog/build/outdoor_waypoint_nav/catkin_generated/installspace/cali_yaw_offset.py")
+endif()
+
+if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/outdoor_waypoint_nav" TYPE PROGRAM FILES "/home/cuong/warthog/build/outdoor_waypoint_nav/catkin_generated/installspace/camera_node.py")
 endif()
 

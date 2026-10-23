@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+
+<!--
+  One-shot yaw_offset calibration for the real UGV.
+
+  Start the normal two launch files first. Then start this launch, keep the
+  robot still until "ARMED", drive straight for 10 to 15 m, and stop for 2 s.
+
+  Heading comes only from /imu/data_new. /gps/fix supplies position/course; the
+  GNSS heading topics are deliberately not subscribed. On a successful and
+  sufficiently straight run, only yaw_offset in navsat_params.yaml is replaced.
+-->
+<launch>
+  <arg name="gps_topic" default="/gps/fix" />
+  <arg name="config_file"
+       default="$(find outdoor_waypoint_nav)/params/navsat_params.yaml" />
+
+  <arg name="min_distance_m" default="10.0" />
+  <arg name="max_distance_m" default="15.0" />
+  <arg name="max_gps_variance_m2" default="0.04" />
+  <arg name="max_line_rms_m" default="0.25" />
+  <arg name="max_line_error_m" default="0.60" />
+  <arg name="max_course_difference_deg" default="2.0" />
+  <arg name="max_imu_yaw_rms_deg" default="5.0" />
+  <arg name="output_decimals" default="3" />
+  <arg name="dry_run" default="false" />
+
+  <node pkg="outdoor_waypoint_nav"
+        type="cali_yaw_offset.py"
+        name="cali_yaw_offset"
+        output="screen"
+        clear_params="true">
+    <param name="gps_topic" value="$(arg gps_topic)" />
+    <param name="config_file" value="$(arg config_file)" />
+
+    <param name="min_distance_m" value="$(arg min_distance_m)" />
+    <param name="max_distance_m" value="$(arg max_distance_m)" />
+    <param name="max_gps_variance_m2" value="$(arg max_gps_variance_m2)" />
+    <param name="max_line_rms_m" value="$(arg max_line_rms_m)" />
+    <param name="max_line_error_m" value="$(arg max_line_error_m)" />
+    <param name="max_course_difference_deg"
+           value="$(arg max_course_difference_deg)" />
+    <param name="max_imu_yaw_rms_deg" value="$(arg max_imu_yaw_rms_deg)" />
+    <param name="output_decimals" value="$(arg output_decimals)" />
+    <param name="dry_run" value="$(arg dry_run)" />
+
+    <param name="baseline_samples" value="8" />
+    <param name="max_baseline_radius_m" value="0.20" />
+    <param name="start_distance_m" value="0.40" />
+    <param name="stop_duration_sec" value="2.0" />
+    <param name="stop_radius_m" value="0.18" />
+    <param name="min_samples" value="20" />
+    <param name="outlier_threshold_m" value="0.50" />
+    <param name="sync_slop_sec" value="0.25" />
+    <param name="min_imu_messages" value="30" />
+    <param name="min_unique_imu_values" value="5" />
+    <param name="max_wait_sec" value="300.0" />
+  </node>
+</launch>

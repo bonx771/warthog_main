@@ -63,6 +63,7 @@ install(DIRECTORY worlds
 )
 
 catkin_install_python(PROGRAMS
+  scripts/cali_yaw_offset.py
   scripts/camera_node.py
   scripts/position_error.py
   scripts/encoder_odometry_node.py

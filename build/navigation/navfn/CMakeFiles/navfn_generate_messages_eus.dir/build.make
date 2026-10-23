@@ -60,11 +60,11 @@ navigation/navfn/CMakeFiles/navfn_generate_messages_eus: /home/cuong/warthog/dev
 
 /home/cuong/warthog/devel/share/roseus/ros/navfn/srv/MakeNavPlan.l: /opt/ros/noetic/lib/geneus/gen_eus.py
 /home/cuong/warthog/devel/share/roseus/ros/navfn/srv/MakeNavPlan.l: /home/cuong/warthog/src/navigation/navfn/srv/MakeNavPlan.srv
-/home/cuong/warthog/devel/share/roseus/ros/navfn/srv/MakeNavPlan.l: /opt/ros/noetic/share/std_msgs/msg/Header.msg
 /home/cuong/warthog/devel/share/roseus/ros/navfn/srv/MakeNavPlan.l: /opt/ros/noetic/share/geometry_msgs/msg/Point.msg
-/home/cuong/warthog/devel/share/roseus/ros/navfn/srv/MakeNavPlan.l: /opt/ros/noetic/share/geometry_msgs/msg/Pose.msg
 /home/cuong/warthog/devel/share/roseus/ros/navfn/srv/MakeNavPlan.l: /opt/ros/noetic/share/geometry_msgs/msg/Quaternion.msg
 /home/cuong/warthog/devel/share/roseus/ros/navfn/srv/MakeNavPlan.l: /opt/ros/noetic/share/geometry_msgs/msg/PoseStamped.msg
+/home/cuong/warthog/devel/share/roseus/ros/navfn/srv/MakeNavPlan.l: /opt/ros/noetic/share/geometry_msgs/msg/Pose.msg
+/home/cuong/warthog/devel/share/roseus/ros/navfn/srv/MakeNavPlan.l: /opt/ros/noetic/share/std_msgs/msg/Header.msg
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/home/cuong/warthog/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Generating EusLisp code from navfn/MakeNavPlan.srv"
 	cd /home/cuong/warthog/build/navigation/navfn && ../../catkin_generated/env_cached.sh /usr/bin/python3 /opt/ros/noetic/share/geneus/cmake/../../../lib/geneus/gen_eus.py /home/cuong/warthog/src/navigation/navfn/srv/MakeNavPlan.srv -Igeometry_msgs:/opt/ros/noetic/share/geometry_msgs/cmake/../msg -Istd_msgs:/opt/ros/noetic/share/std_msgs/cmake/../msg -p navfn -o /home/cuong/warthog/devel/share/roseus/ros/navfn/srv
 
