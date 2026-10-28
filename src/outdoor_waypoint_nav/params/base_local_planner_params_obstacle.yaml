@@ -10,11 +10,11 @@ TrajectoryPlannerROS:
   acc_lim_x: 0.50
   acc_lim_theta: 0.70
 
-  max_vel_x: 0.90
-  min_vel_x: 0.216
-  max_vel_theta: 0.48
-  min_vel_theta: -0.48
-  min_in_place_vel_theta: 0.30
+  max_vel_x: 1.4256
+  min_vel_x: 0.342144
+  max_vel_theta: 0.576
+  min_vel_theta: -0.576
+  min_in_place_vel_theta: 0.36
 
   holonomic_robot: false
   escape_vel: 0.0
@@ -27,10 +27,10 @@ TrajectoryPlannerROS:
   xy_goal_tolerance: 0.10
   latch_xy_goal_tolerance: true
 
-  # A 1.4 s rollout still covers 1.26 m at max speed (more than the measured
-  # stopping distance), but is less likely to reject every candidate because
-  # of one short-lived far-ahead cost cell. Extra x samples let the planner
-  # select an intermediate speed instead of alternating between 0.90 and zero.
+  # A 1.4 s rollout covers 2.00 m at max speed, but is less likely to reject
+  # every candidate because of one short-lived far-ahead cost cell. Extra x
+  # samples let the planner select an intermediate speed instead of
+  # alternating between max speed and zero.
   sim_time: 1.4
   sim_granularity: 0.05
   angular_sim_granularity: 0.04

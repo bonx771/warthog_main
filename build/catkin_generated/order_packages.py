@@ -2,4 +2,4 @@
 source_root_dir = '/home/cuong/warthog/src'
 whitelisted_packages = ''.split(';') if '' != '' else []
 blacklisted_packages = ''.split(';') if '' != '' else []
-underlay_workspaces = '/home/cuong/warthog/devel;/opt/ros/noetic'.split(';') if '/home/cuong/warthog/devel;/opt/ros/noetic' != '' else []
+underlay_workspaces = '/home/cuong/warthog_full/devel;/home/cuong/warthog/devel;/opt/ros/noetic'.split(';') if '/home/cuong/warthog_full/devel;/home/cuong/warthog/devel;/opt/ros/noetic' != '' else []

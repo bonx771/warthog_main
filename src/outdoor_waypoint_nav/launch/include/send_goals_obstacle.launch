@@ -50,10 +50,10 @@
          value="0.45"
          type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_min_angular_speed"
-         value="0.30"
+         value="0.36"
          type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_max_angular_speed"
-         value="0.48"
+         value="0.576"
          type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_timeout"
          value="20.0"
