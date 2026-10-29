@@ -34,14 +34,18 @@ def install_obstacle_navigation_gate():
         )
 
     def start_launch_process_when_ready(launch_file, label, launch_args=None):
-        if label in ("send_goals.launch", "home_to_initial_waypoint.launch"):
+        if label in (
+            "send_goals.launch",
+            "send_goals_reverse.launch",
+            "home_to_initial_waypoint.launch",
+        ):
             if not navigation_ready:
                 rospy.logerr(
                     "Obstacle navigation is not ready: keep the UGV stopped and "
                     "wait for the NAVIGATION READY log before sending waypoints."
                 )
                 controller.publish_zero_velocity()
-                return
+                return False
         return original_start_launch_process(launch_file, label, launch_args)
 
     controller.launch_subscribers = launch_subscribers_with_guard

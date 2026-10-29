@@ -44,6 +44,10 @@ outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o
  /opt/ros/noetic/include/move_base_msgs/MoveBaseFeedback.h
  /opt/ros/noetic/include/move_base_msgs/MoveBaseGoal.h
  /opt/ros/noetic/include/move_base_msgs/MoveBaseResult.h
+ /opt/ros/noetic/include/nav_msgs/GetPlan.h
+ /opt/ros/noetic/include/nav_msgs/GetPlanRequest.h
+ /opt/ros/noetic/include/nav_msgs/GetPlanResponse.h
+ /opt/ros/noetic/include/nav_msgs/Path.h
  /opt/ros/noetic/include/ros/advertise_options.h
  /opt/ros/noetic/include/ros/advertise_service_options.h
  /opt/ros/noetic/include/ros/assert.h

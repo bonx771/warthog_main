@@ -25,6 +25,9 @@ class KeyboardToJoy:
         self.angular_speed = self._get_param("angular_speed", 0.8)
         self.publish_rate = self._get_param("publish_rate", 10.0)
         self.enable_motion_keys = self._coerce_bool(self._get_param("enable_motion_keys", True))
+        self.reverse_waypoint_key_enabled = self._coerce_bool(
+            self._get_param("reverse_waypoint_key_enabled", False)
+        )
 
         default_key_to_button = {
             "l": 4,  # LB
@@ -180,7 +183,11 @@ class KeyboardToJoy:
             "l": "start waypoint collection",
             "r": "start waypoint following",
             "s": "heading calibration",
-            "b": "stop robot motion",
+            "b": (
+                "follow waypoints in reverse after r completes (stop while moving)"
+                if self.reverse_waypoint_key_enabled
+                else "stop robot motion"
+            ),
             "h": "return to initial waypoint",
             "c": "reserved command",
             "y": "continue or collect waypoint",

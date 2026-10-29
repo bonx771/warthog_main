@@ -20,6 +20,12 @@
     <arg name="lidar_clearing_topic"
          default="/outdoor_waypoint_nav/clearing_points_obstacle" />
     <arg name="lidar_scan_topic" default="/front/scan" />
+
+    <!-- Giới hạn LaserScan của riêng luồng obstacle ở vùng 90 độ phía trước:
+         -45 độ đến +45 độ quanh trục +X của lidar_frame. -->
+    <arg name="scan_angle_min" default="-0.78539816339" />
+    <arg name="scan_angle_max" default="0.78539816339" />
+
     <arg name="lidar_costmap_enable_topic"
          default="/outdoor_waypoint_nav/lidar_costmap_enabled_obstacle" />
     <arg name="navigation_ready_topic"
@@ -43,7 +49,7 @@
     <!-- Keep the clean-RTK obstacle scenario's existing behavior by default.
          Noisy-GNSS scenarios can override these without changing this launch. -->
     <arg name="direct_rtk_position" default="true" />
-    <arg name="angular_startup_floor" default="0.36" />
+    <arg name="angular_startup_floor" default="0.5" /> <!-- Lực đề pa khi qua tại chỗ  0.36-->
     <arg name="enforce_in_place_angular_floor" default="false" />
 
     <include if="$(arg use_gps)" file="$(find gps_pkg)/launch/navsat_transform_gps.launch">
@@ -111,6 +117,13 @@
       <arg name="lidar_frame" value="$(arg lidar_frame)" />
     </include>
 
+    <!-- Chỉ ghi đè góc quét PointCloud2 -> LaserScan của launch này;
+         các launch LiDAR/navigation khác vẫn giữ vùng quét 360 độ. -->
+    <param name="/obstacle_cloud_to_laserscan/angle_min"
+           value="$(arg scan_angle_min)" />
+    <param name="/obstacle_cloud_to_laserscan/angle_max"
+           value="$(arg scan_angle_max)" />
+           
     <include file="$(dirname)/../include/localization_run.launch">
         <arg name="use_gps" value="$(arg use_gps)" />
         <arg name="gps_fix_topic" value="$(arg gps_fix_topic)" />
@@ -166,10 +179,11 @@
       <param name="frequency" value="30.0" />
       <param name="linear_accel" value="0.50" />
       <param name="linear_decel" value="0.90" />
-      <param name="angular_accel" value="0.70" />
+      <param name="angular_accel" value="0.80" /> <!-- gia tốc quay tối đa -->
       <param name="angular_decel" value="1.00" />
       <param name="max_linear" value="1.71072" />
-      <param name="max_angular" value="0.576" />
+      <param name="max_angular" value="0.6" />  <!-- vận tốc quay tối đa -->
+
       <!-- Jump directly to the measured skid-steer breakaway command when an
            in-place turn starts; all later changes still obey acceleration. -->
       <param name="angular_startup_floor" value="$(arg angular_startup_floor)" />

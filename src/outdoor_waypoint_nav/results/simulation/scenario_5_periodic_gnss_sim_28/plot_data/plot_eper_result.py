@@ -26,6 +26,68 @@ LOCAL_EKF_OFFSET_START_WAYPOINT = 10
 PLOT_FONT_SCALE = 1.5
 
 
+VIETNAMESE_PLOT_TEXT = {
+    "Map X (m)": "Tọa độ X trên bản đồ (m)",
+    "Map Y (m)": "Tọa độ Y trên bản đồ (m)",
+    "Global EKF": "EKF toàn cục",
+    "Local EKF": "EKF cục bộ",
+    "Encoder odometry": "Ước lượng từ bộ mã hóa",
+    "GPS fixes (available)": "Điểm GPS (khả dụng)",
+    "Waypoint path": "Đường nối các điểm dẫn đường",
+    "Waypoints": "Các điểm dẫn đường",
+    "Recording start": "Điểm bắt đầu ghi dữ liệu",
+    "Final vehicle position": "Vị trí cuối của xe",
+}
+
+
+def _translate_plot_text(text):
+    translated = VIETNAMESE_PLOT_TEXT.get(text)
+    if translated is not None:
+        return translated
+    if text.startswith("Target "):
+        return "Mục tiêu " + text[len("Target "):]
+    if text.startswith("Position error to "):
+        return "Sai số vị trí tới " + text[len("Position error to "):]
+    if text.startswith("Trajectory length = "):
+        return "Chiều dài quỹ đạo = " + text[len("Trajectory length = "):]
+    return text
+
+
+def _draw_result_with_vietnamese_text(plotter, run_dir, output_path, show=False):
+    """Chỉ Việt hóa chữ hiển thị; giữ nguyên toàn bộ cách vẽ."""
+    from matplotlib.axes import Axes
+
+    original_legend = Axes.legend
+    original_set_xlabel = Axes.set_xlabel
+    original_set_ylabel = Axes.set_ylabel
+
+    def legend_with_vietnamese_text(axes, *args, **kwargs):
+        legend = original_legend(axes, *args, **kwargs)
+        for legend_text in legend.get_texts():
+            legend_text.set_text(_translate_plot_text(legend_text.get_text()))
+        return legend
+
+    def set_xlabel_in_vietnamese(axes, label, *args, **kwargs):
+        return original_set_xlabel(
+            axes, _translate_plot_text(label), *args, **kwargs
+        )
+
+    def set_ylabel_in_vietnamese(axes, label, *args, **kwargs):
+        return original_set_ylabel(
+            axes, _translate_plot_text(label), *args, **kwargs
+        )
+
+    Axes.legend = legend_with_vietnamese_text
+    Axes.set_xlabel = set_xlabel_in_vietnamese
+    Axes.set_ylabel = set_ylabel_in_vietnamese
+    try:
+        plotter.draw_result(run_dir, output_path, show=show)
+    finally:
+        Axes.legend = original_legend
+        Axes.set_xlabel = original_set_xlabel
+        Axes.set_ylabel = original_set_ylabel
+
+
 def _load_shared_plotter(simulation_dir):
     module_path = simulation_dir / "plot_simulation_result.py"
     if not module_path.is_file():
@@ -150,7 +212,8 @@ def main():
     plotter = _load_shared_plotter(simulation_dir)
     plotter.FONT_SCALE = PLOT_FONT_SCALE
     _offset_local_ekf_after_wp10(plotter, run_dir)
-    plotter.draw_result(
+    _draw_result_with_vietnamese_text(
+        plotter,
         str(run_dir),
         str(output_path),
         show=bool(args.show and os.environ.get("DISPLAY")),

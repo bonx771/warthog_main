@@ -18,8 +18,9 @@ SCENARIOS = (
     (3, "GNSS noise", "Noise run 5", "scenario_2_gnss_noise_5"),
     (4, "GNSS outage", "Outage run 1", "scenario_3_gnss_outage_1"),
     (5, "GNSS outage", "Outage run 2", "scenario_3_gnss_outage_2"),
-    (6, "Obstacle avoidance", "Obstacle run 1", "scenario_obstacle_1"),
-    (7, "Obstacle avoidance", "Obstacle run 2", "scenario_obstacle_2"),
+    (6, "Combined scenario", "Noise + two outages", "scenario_obstacle_20261028_163333"),
+    (7, "Obstacle avoidance", "Obstacle run 1", "scenario_obstacle_1"),
+    (8, "Obstacle avoidance", "Obstacle run 2", "scenario_obstacle_2"),
 )
 
 OUTPUT_COLUMNS = (
@@ -149,7 +150,7 @@ def print_table(rows):
 def main():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     parser = argparse.ArgumentParser(
-        description="Export Max CTE, CTE RMSE and CTE MAE for seven experiments."
+        description="Export Max CTE, CTE RMSE and CTE MAE for eight experiments."
     )
     parser.add_argument(
         "--output",

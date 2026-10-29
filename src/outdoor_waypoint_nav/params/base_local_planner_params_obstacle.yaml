@@ -22,8 +22,9 @@ TrajectoryPlannerROS:
   # Any normalized yaw error is <= pi, so orientation never blocks success or
   # causes an in-place final rotation.
   yaw_goal_tolerance: 3.1415927
-  # Intermediate points are canceled by the RTK checker at 0.50 m. Keep the
-  # planner position tolerance at 0.10 m for the final waypoint.
+  # Intermediate points are canceled by the obstacle sender's RTK/proxy
+  # checker before exact convergence. Keep the planner position tolerance at
+  # 0.10 m for the strict final waypoint.
   xy_goal_tolerance: 0.10
   latch_xy_goal_tolerance: true
 

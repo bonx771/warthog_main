@@ -357,18 +357,25 @@ class ObstacleCmdVelSmoother:
         elif self.motion_state == "ALIGN":
             self.target_linear = 0.0
             angular = self.raw_angular
-            if self.explicit_align and abs(angular) > self.deadband:
-                magnitude = min(
-                    self.max_angular,
-                    max(abs(angular), self.align_min_angular),
-                )
-                angular = magnitude if angular > 0.0 else -magnitude
-            elif heading_error is not None:
+            # Always use the normalized global-plan heading error when it is
+            # available. TrajectoryPlannerROS can request an in-place turn in
+            # the opposite direction near a narrow passage; blindly keeping
+            # that raw sign makes the UGV take the long way around (almost a
+            # complete revolution) even though the path is only a few degrees
+            # away. Fall back to the planner sign only when plan/odom heading
+            # data is unavailable or stale.
+            if heading_error is not None:
                 magnitude = min(
                     self.max_angular,
                     max(abs(angular), self.align_min_angular),
                 )
                 angular = magnitude if heading_error > 0.0 else -magnitude
+            elif self.explicit_align and abs(angular) > self.deadband:
+                magnitude = min(
+                    self.max_angular,
+                    max(abs(angular), self.align_min_angular),
+                )
+                angular = magnitude if angular > 0.0 else -magnitude
             self.target_angular = angular
         else:  # ALIGN_BRAKE or ALIGN_RELEASE
             self.target_linear = 0.0

@@ -10,6 +10,7 @@
 <launch>
 
   <arg name="coordinates_file" default="/waypoint_files/points_obstacle.txt" />
+  <arg name="reverse_waypoint_order" default="false" />
   <!-- Keep this configurable so GNSS-degradation scenarios can feed noisy
        fixes to localization while waypoint arrival still uses raw RTK. -->
   <arg name="rtk_fix_topic"
@@ -17,6 +18,7 @@
 
   <include file="$(find outdoor_waypoint_nav)/launch/include/send_goals.launch">
     <arg name="coordinates_file" value="$(arg coordinates_file)" />
+    <arg name="reverse_waypoint_order" value="$(arg reverse_waypoint_order)" />
   </include>
 
   <!-- roslaunch loads these parameters before it starts gps_waypoint. -->
@@ -26,6 +28,61 @@
   <param name="/outdoor_waypoint_nav/waypoint_cmd_topic"
          value="/cmd_vel_raw_obstacle"
          type="string" />
+  <!-- A temporary move_base ABORTED result must stop the vehicle and retry the
+       same route stage; it must not terminate the waypoint child launch. -->
+  <param name="/outdoor_waypoint_nav/navigation_failure_retry_enabled"
+         value="true"
+         type="bool" />
+  <param name="/outdoor_waypoint_nav/navigation_failure_retry_delay"
+         value="0.5"
+         type="double" />
+  <!-- Zero means retry until the path clears or the operator stops the run. -->
+  <param name="/outdoor_waypoint_nav/navigation_failure_max_retries"
+         value="0"
+         type="int" />
+  <!-- Keep distant goals well inside the rolling global costmap. Shorter
+       60 m stages are cheaper for Dijkstra and remain far from the boundary
+       even while the rolling window follows a moving/localizing robot. -->
+  <param name="/outdoor_waypoint_nav/virtual_subgoal_enabled"
+         value="true"
+         type="bool" />
+  <param name="/outdoor_waypoint_nav/virtual_subgoal_max_distance"
+         value="60.0"
+         type="double" />
+  <param name="/outdoor_waypoint_nav/virtual_subgoal_costmap_margin"
+         value="15.0"
+         type="double" />
+  <!-- For a blocked intermediate waypoint, plan to a nearby point outside the
+       padded Warthog footprint. Final waypoints never use a proxy. -->
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_enabled"
+         value="true"
+         type="bool" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_after_retries"
+         value="1"
+         type="int" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_min_radius"
+         value="1.15"
+         type="double" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_max_radius"
+         value="1.40"
+         type="double" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_radius_step"
+         value="0.25"
+         type="double" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_angular_samples"
+         value="12"
+         type="int" />
+  <!-- Bound synchronous Dijkstra work after an abort. Later retries rotate
+       the search sector, so all directions are still considered over time. -->
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_max_candidates_per_retry"
+         value="2"
+         type="int" />
+  <param name="/outdoor_waypoint_nav/make_plan_service"
+         value="/move_base/make_plan"
+         type="string" />
+  <param name="/outdoor_waypoint_nav/make_plan_service_wait_timeout"
+         value="1.0"
+         type="double" />
   <!-- RTK position alone determines completion. Do not resend a near-goal
        heading or require the robot to rotate at any waypoint. -->
   <param name="/outdoor_waypoint_nav/waypoint_goal_heading_enabled"
@@ -65,8 +122,9 @@
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_scan_timeout"
          value="0.50"
          type="double" />
-  <!-- GNSS is the source of truth for physical waypoint completion. Precise
-       RTK uses the 1.00/0.70 m radii below. RTK FLOAT and GPS-normal may also
+  <!-- GNSS is the source of truth for physical waypoint completion. The
+       1.50 m intermediate radius contains every configured proxy; the final
+       waypoint remains strict at 0.70 m. RTK FLOAT and GPS-normal may also
        confirm by radius, or fall back to move_base SUCCEEDED if noisier. -->
   <param name="/outdoor_waypoint_nav/rtk_arrival_enabled"
          value="true"
@@ -84,7 +142,7 @@
          value="0.20"
          type="double" />
   <param name="/outdoor_waypoint_nav/rtk_arrival_radius"
-         value="1.00"
+         value="1.50"
          type="double" />
   <param name="/outdoor_waypoint_nav/rtk_final_arrival_radius"
          value="0.70"

@@ -6,9 +6,11 @@
        joy_launch_control.py remain unchanged. Scenario-specific launchers can
        pass a different, package-relative waypoint file. -->
   <arg name="coordinates_file" default="/waypoint_files/points_outdoor.txt" />
+  <arg name="reverse_waypoint_order" default="false" />
 
   <node ns="/outdoor_waypoint_nav" pkg="outdoor_waypoint_nav" type="gps_waypoint" name="gps_waypoint" output="screen" />
   <param name="/outdoor_waypoint_nav/coordinates_file" value="$(arg coordinates_file)" type="string" />
+  <param name="/outdoor_waypoint_nav/reverse_waypoint_order" value="$(arg reverse_waypoint_order)" type="bool" />
   <param name="/outdoor_waypoint_nav/goal_frame" value="map" type="string" />
   <param name="/outdoor_waypoint_nav/waypoint_marker_frame" value="map" type="string" />
   <param name="/outdoor_waypoint_nav/waypoint_marker_topic" value="/outdoor_waypoint_nav/collected_waypoints" type="string" />
@@ -33,6 +35,23 @@
   <param name="/outdoor_waypoint_nav/safety_replan_cooldown" value="0.0" type="double" />
   <param name="/outdoor_waypoint_nav/auto_replan_current_goal_enabled" value="false" type="bool" />
   <param name="/outdoor_waypoint_nav/auto_replan_current_goal_interval" value="0.0" type="double" />
+  <!-- Route resilience is opt-in so Scenarios 1-4 preserve their established
+       behavior. The obstacle sender below enables and sizes these features. -->
+  <param name="/outdoor_waypoint_nav/navigation_failure_retry_enabled" value="false" type="bool" />
+  <param name="/outdoor_waypoint_nav/navigation_failure_retry_delay" value="1.0" type="double" />
+  <param name="/outdoor_waypoint_nav/navigation_failure_max_retries" value="0" type="int" />
+  <param name="/outdoor_waypoint_nav/virtual_subgoal_enabled" value="false" type="bool" />
+  <param name="/outdoor_waypoint_nav/virtual_subgoal_max_distance" value="100.0" type="double" />
+  <param name="/outdoor_waypoint_nav/virtual_subgoal_costmap_margin" value="15.0" type="double" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_enabled" value="false" type="bool" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_after_retries" value="1" type="int" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_min_radius" value="1.15" type="double" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_max_radius" value="1.40" type="double" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_radius_step" value="0.25" type="double" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_angular_samples" value="12" type="int" />
+  <param name="/outdoor_waypoint_nav/blocked_waypoint_proxy_max_candidates_per_retry" value="6" type="int" />
+  <param name="/outdoor_waypoint_nav/make_plan_service" value="/move_base/make_plan" type="string" />
+  <param name="/outdoor_waypoint_nav/make_plan_service_wait_timeout" value="1.0" type="double" />
   <param name="/outdoor_waypoint_nav/preferred_avoidance_turn_topic" value="/outdoor_waypoint_nav/preferred_avoidance_turn_direction" type="string" />
   <param name="/outdoor_waypoint_nav/preferred_avoidance_turn_deadband_deg" value="8.0" type="double" />
   <param name="/outdoor_waypoint_nav/preferred_avoidance_turn_sign" value="1.0" type="double" />

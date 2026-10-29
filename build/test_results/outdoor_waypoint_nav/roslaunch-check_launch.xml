@@ -1,0 +1,74 @@
+<testsuite tests="1" failures="1" time="1" errors="0" name="roslaunch-check_launch.xml"><testcase name="outdoor_waypoint_nav_launch" status="run" time="1" classname="roslaunch.RoslaunchCheck"><failure message="roslaunch check [/home/cuong/warthog/src/outdoor_waypoint_nav/launch] failed" type="" /></testcase><system-out>&lt;![CDATA[
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/joy_launch_control_continuous_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/scenario_1_gnss_normal_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/scenario_2_gnss_noise_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/outdoor_waypoint_obstacle_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: warthog_gazebo, rviz, warthog_slam
+Missing package dependencies: warthog_slam/package.xml: move_base
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/scenario_5_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/scenario_4_trajectory_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/joy_launch_control_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/waypoint_control_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/outdoor_waypoint_nav_continuous_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: warthog_gazebo, warthog_slam, rviz
+Missing package dependencies: warthog_slam/package.xml: move_base, gmapping
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/scenario_3_gnss_outage_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/scenario_obstacle_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/simulation/outdoor_waypoint_nav_sim.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: warthog_gazebo, rviz, warthog_slam
+Missing package dependencies: warthog_slam/package.xml: move_base
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/scenario_1_gnss_normal.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/outdoor_waypoint_obstacle.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: gps_pkg, tf2_ros, rviz, topic_tools, move_base, imu_pkg
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/scenario_obstacle_3.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/total.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: gps_pkg, tf2_ros, rviz, topic_tools, move_base, imu_pkg
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/scenario_4_trajectory.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/test.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: warthog_slam
+Missing package dependencies: warthog_slam/package.xml: move_base
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/scenario_2_gnss_noise.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/outdoor_waypoint_nav_continuous.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: lms1xx, warthog_slam, rviz, topic_tools, laser_filters, imu_pkg
+Missing package dependencies: imu_pkg/package.xml: tf2_ros
+Missing package dependencies: warthog_slam/package.xml: move_base, gmapping
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/outdoor_waypoint_obstacle_2.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: gps_pkg, tf2_ros, rviz, topic_tools, move_base, imu_pkg
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/amcl_odom_tf.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: tf2_ros, imu_pkg, topic_tools
+Missing package dependencies: imu_pkg/package.xml: tf2_ros
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/scenario_obstacle_2.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/scenario_obstacle.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/scenario_3_gnss_outage.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/outdoor/outdoor_waypoint_nav.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: gps_pkg, warthog_slam, tf2_ros, rviz, topic_tools, imu_pkg
+Missing package dependencies: imu_pkg/package.xml: tf2_ros
+Missing package dependencies: warthog_slam/package.xml: move_base
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/include/imu.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: imu_pkg
+Missing package dependencies: imu_pkg/package.xml: tf2_ros
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/include/move_base_nav_obstacle.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: move_base
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/include/laser.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: lms1xx, laser_filters
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/include/gazebo.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: warthog_gazebo
+[/home/cuong/warthog/src/outdoor_waypoint_nav/launch/include/localization_run.launch]:
+	Missing package dependencies: outdoor_waypoint_nav/package.xml: topic_tools
+]]&gt;</system-out></testsuite>

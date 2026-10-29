@@ -300,8 +300,8 @@ def draw_result(run_dir, output_path, show=False):
     target_name = str(metadata.get("target_name", "WP{}".format(target_index + 1)))
 
     fig, ax = plt.subplots(figsize=(11, 8))
-    ax.set_xlabel("Map X (m)", fontsize=10 * FONT_SCALE)
-    ax.set_ylabel("Map Y (m)", fontsize=10 * FONT_SCALE)
+    ax.set_xlabel("Tọa độ X trên bản đồ (m)", fontsize=10 * FONT_SCALE)
+    ax.set_ylabel("Tọa độ Y trên bản đồ (m)", fontsize=10 * FONT_SCALE)
     ax.tick_params(axis="both", labelsize=10 * FONT_SCALE)
     ax.set_aspect("equal", adjustable="box")
     ax.grid(True, alpha=0.35)
@@ -311,7 +311,7 @@ def draw_result(run_dir, output_path, show=False):
         [point[1] for point in global_path],
         color=GLOBAL_COLOR,
         linewidth=3.0,
-        label="Global EKF",
+        label="EKF toàn cục",
     )
     if local_path:
         ax.plot(
@@ -321,7 +321,7 @@ def draw_result(run_dir, output_path, show=False):
             linewidth=1.8,
             linestyle="-.",
             alpha=0.95,
-            label="Local EKF",
+            label="EKF cục bộ",
         )
     if encoder_path:
         ax.plot(
@@ -330,7 +330,7 @@ def draw_result(run_dir, output_path, show=False):
             color=ENCODER_COLOR,
             linewidth=1.8,
             alpha=0.95,
-            label="Encoder odometry",
+            label="Ước lượng từ bộ mã hóa",
         )
     if gps_path:
         ax.scatter(
@@ -341,12 +341,12 @@ def draw_result(run_dir, output_path, show=False):
             edgecolors="none",
             alpha=0.7,
             zorder=3,
-            label="GPS fixes (available)",
+            label="Điểm GPS (khả dụng)",
         )
 
     waypoint_x = [point[0] for point in waypoints]
     waypoint_y = [point[1] for point in waypoints]
-    ax.plot(waypoint_x, waypoint_y, "--", color=WAYPOINT_COLOR, linewidth=1.4, label="Waypoint path")
+    ax.plot(waypoint_x, waypoint_y, "--", color=WAYPOINT_COLOR, linewidth=1.4, label="Đường nối các điểm dẫn đường")
     ax.scatter(
         waypoint_x,
         waypoint_y,
@@ -355,16 +355,16 @@ def draw_result(run_dir, output_path, show=False):
         edgecolors="#111827",
         linewidths=0.8,
         zorder=5,
-        label="Waypoints",
+        label="Các điểm dẫn đường",
     )
     for index, (x_value, y_value) in enumerate(waypoints, start=1):
         ax.text(x_value, y_value, "  WP{}".format(index), fontsize=10 * FONT_SCALE, weight="bold", color="#111827")
 
     start = global_path[0]
-    ax.scatter([start[0]], [start[1]], s=90, color="#16a34a", edgecolors="#111827", zorder=6, label="Recording start")
-    ax.scatter([goal[0]], [goal[1]], s=160, marker="*", color="#9333ea", edgecolors="#111827", zorder=7, label="Target {}".format(target_name))
-    ax.scatter([actual[0]], [actual[1]], s=120, marker="X", color="#dc2626", edgecolors="#111827", zorder=7, label="Final vehicle position")
-    ax.plot([goal[0], actual[0]], [goal[1], actual[1]], ":", color="#dc2626", linewidth=2.0, label="Position error to {}".format(target_name))
+    ax.scatter([start[0]], [start[1]], s=90, color="#16a34a", edgecolors="#111827", zorder=6, label="Điểm bắt đầu ghi dữ liệu")
+    ax.scatter([goal[0]], [goal[1]], s=160, marker="*", color="#9333ea", edgecolors="#111827", zorder=7, label="Mục tiêu {}".format(target_name))
+    ax.scatter([actual[0]], [actual[1]], s=120, marker="X", color="#dc2626", edgecolors="#111827", zorder=7, label="Vị trí cuối của xe")
+    ax.plot([goal[0], actual[0]], [goal[1], actual[1]], ":", color="#dc2626", linewidth=2.0, label="Sai số vị trí tới {}".format(target_name))
 
     error_annotation = ax.text(
         (goal[0] + actual[0]) * 0.5,
@@ -379,7 +379,7 @@ def draw_result(run_dir, output_path, show=False):
     trajectory_length = _path_length(global_path)
     ax.plot(
         [], [], linestyle="none", marker="",
-        label="Trajectory length = {:.2f} m".format(trajectory_length),
+        label="Chiều dài quỹ đạo = {:.2f} m".format(trajectory_length),
     )
 
     # Match the requested result layout: vertical legend at lower right,

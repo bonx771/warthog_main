@@ -33,6 +33,7 @@ home_btn_sym = ""
 sim_enabled = False
 keyboard_waypoint_control_enabled = False
 keyboard_joy_topic = "/outdoor_waypoint_nav/keyboard_joy"
+reverse_waypoint_control_enabled = False
 
 location_collect = ""
 location_send = ""
@@ -50,6 +51,8 @@ launch_output_thread = None
 cmd_vel_pub = None
 cmd_vel_intermediate_pub = None
 warthog_cmd_vel_pub = None
+active_waypoint_direction = ""
+last_completed_waypoint_direction = ""
 
 def getParameter():
     global collect_btn_num
@@ -67,6 +70,7 @@ def getParameter():
     global sim_enabled
     global keyboard_waypoint_control_enabled
     global keyboard_joy_topic
+    global reverse_waypoint_control_enabled
 
     collect_btn_num = rospy.get_param("/outdoor_waypoint_nav/collect_button_num")
     collect_btn_sym = rospy.get_param("/outdoor_waypoint_nav/collect_button_sym")
@@ -84,6 +88,9 @@ def getParameter():
     sim_enabled = rospy.get_param("/outdoor_waypoint_nav/sim_enabled")
     keyboard_waypoint_control_enabled = rospy.get_param("/outdoor_waypoint_nav/keyboard_waypoint_control_enabled", False)
     keyboard_joy_topic = rospy.get_param("/outdoor_waypoint_nav/keyboard_joy_topic", "/outdoor_waypoint_nav/keyboard_joy")
+    reverse_waypoint_control_enabled = rospy.get_param(
+        "/outdoor_waypoint_nav/reverse_waypoint_control_enabled", False
+    )
 
 def getPaths():
     global location_collect
@@ -270,6 +277,7 @@ def start_launch_process(launch_file, label, launch_args=None):
         daemon=True,
     )
     launch_output_thread.start()
+    return True
 
 def check_launch_process_exit():
     global launch_process
@@ -307,6 +315,50 @@ def has_move_base_server():
     ]
     return all(topic in published_topics for topic in required_topics)
 
+
+def start_waypoint_following(reverse_order=False):
+    global active_waypoint_direction
+    global last_completed_waypoint_direction
+
+    if not has_move_base_server():
+        launch_name = "outdoor_waypoint_nav_sim.launch" if sim_enabled else "outdoor_waypoint_nav.launch"
+        rospy.logerr("move_base is not running. Start %s before starting waypoint following.", launch_name)
+        return False
+
+    waypoint_path = get_coordinates_file_path()
+    waypoint_token_count = count_waypoint_tokens(waypoint_path)
+    if waypoint_token_count < 2:
+        rospy.logerr("No waypoint available in %s. Collect waypoint(s) first.", waypoint_path)
+        return False
+
+    coordinates_file = rospy.get_param(
+        "/outdoor_waypoint_nav/coordinates_file",
+        "/waypoint_files/points_sim.txt"
+        if sim_enabled
+        else "/waypoint_files/points_outdoor.txt",
+    )
+    launch_args = ["coordinates_file:={}".format(coordinates_file)]
+    launch_label = "send_goals.launch"
+    active_waypoint_direction = "forward"
+    if reverse_order:
+        launch_args.append("reverse_waypoint_order:=true")
+        launch_label = "send_goals_reverse.launch"
+        active_waypoint_direction = "reverse"
+
+    previous_completed_direction = last_completed_waypoint_direction
+    last_completed_waypoint_direction = ""
+    rospy.loginfo("Using waypoint file: %s", waypoint_path)
+    rospy.loginfo("Waypoint count detected: %d", waypoint_token_count // 2)
+    rospy.loginfo(
+        "Starting waypoint route in %s order.",
+        "reverse" if reverse_order else "forward",
+    )
+    if start_launch_process(location_send, launch_label, launch_args) is False:
+        active_waypoint_direction = ""
+        last_completed_waypoint_direction = previous_completed_direction
+        return False
+    return True
+
 def check_buttons():
 
     global button_events
@@ -315,11 +367,28 @@ def check_buttons():
     global collect_complete
     global send_complete
     global velocity_paused
+    global active_waypoint_direction
+    global last_completed_waypoint_direction
 
     current_events = button_events[:]
     button_events = [False, False, False, False, False, False]
     check_launch_process_exit()
     
+    # Once the normal r/RB trip has completed, b/B starts the same route in
+    # reverse order. During an active trip b/B remains the existing stop key.
+    if (
+        current_events[3]
+        and reverse_waypoint_control_enabled
+        and last_completed_waypoint_direction == "forward"
+        and not active_waypoint_direction
+        and launch_process is None
+    ):
+        rospy.logwarn(
+            "REVERSE selected: following the collected waypoints back to the start."
+        )
+        start_waypoint_following(reverse_order=True)
+        return
+
     # Check abort button
     if current_events[3]:
         if launch_label == "home_to_initial_waypoint.launch":
@@ -348,6 +417,7 @@ def check_buttons():
 
     # Return to the first waypoint in the active route.
     if current_events[5]:
+        last_completed_waypoint_direction = ""
         waypoint_path = get_coordinates_file_path()
         waypoint_token_count = count_waypoint_tokens(waypoint_path)
         if waypoint_token_count < 2:
@@ -374,35 +444,12 @@ def check_buttons():
 
     # Start collecting goals
     if current_events[0]:
+        last_completed_waypoint_direction = ""
         start_launch_process(location_collect, "collect_goals.launch")
 
     # Start sending goals
     elif current_events[1]:
-        if not has_move_base_server():
-            launch_name = "outdoor_waypoint_nav_sim.launch" if sim_enabled else "outdoor_waypoint_nav.launch"
-            rospy.logerr("move_base is not running. Start %s before pressing %s.", launch_name, send_btn_sym)
-            return
-
-        waypoint_path = get_coordinates_file_path()
-        waypoint_token_count = count_waypoint_tokens(waypoint_path)
-        if waypoint_token_count < 2:
-            rospy.logerr("No waypoint available in %s. Collect waypoint(s) before pressing %s.", waypoint_path, send_btn_sym)
-            return
-
-        rospy.loginfo("Using waypoint file: %s", waypoint_path)
-        rospy.loginfo("Waypoint count detected: %d", waypoint_token_count // 2)
-        start_launch_process(
-            location_send,
-            "send_goals.launch",
-            ["coordinates_file:={}".format(
-                rospy.get_param(
-                    "/outdoor_waypoint_nav/coordinates_file",
-                    "/waypoint_files/points_sim.txt"
-                    if sim_enabled
-                    else "/waypoint_files/points_outdoor.txt",
-                )
-            )],
-        )
+        start_waypoint_following(reverse_order=False)
 
     # Start Heading Calbration
     elif current_events[2]:
@@ -415,6 +462,15 @@ def check_buttons():
     if (calibrate_complete or collect_complete or send_complete):
         rospy.sleep(2) # Sleep for 2 seconds to allow time for other nodes to shutdown
         shutdown_launch_process()
+        if send_complete and active_waypoint_direction:
+            last_completed_waypoint_direction = active_waypoint_direction
+            if active_waypoint_direction == "forward" and reverse_waypoint_control_enabled:
+                rospy.loginfo(
+                    "Forward route complete. Press b/B to follow the waypoints in reverse back to the start."
+                )
+            elif active_waypoint_direction == "reverse":
+                rospy.loginfo("Reverse route complete: returned to the start waypoint.")
+            active_waypoint_direction = ""
         print_instructions()
         # Reset all parameters
         calibrate_complete = False

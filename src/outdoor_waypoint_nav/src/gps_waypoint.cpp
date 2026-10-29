@@ -10,6 +10,7 @@
 #include <geometry_msgs/PointStamped.h>
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/Vector3Stamped.h>
+#include <nav_msgs/GetPlan.h>
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <sensor_msgs/NavSatStatus.h>
@@ -18,6 +19,7 @@
 #include <std_msgs/Int32.h>
 #include <visualization_msgs/Marker.h>
 #include <tf/transform_listener.h>
+#include <cctype>
 #include <math.h>
 #include <limits>
 
@@ -76,6 +78,7 @@ double waypoint_pre_align_timeout = 20.0;
 double waypoint_pre_align_min_scan_clearance = 0.0;
 double waypoint_pre_align_scan_timeout = 0.5;
 bool return_to_start_enabled = true;
+bool reverse_waypoint_order = false;
 bool return_heading_pid_enabled = true;
 double return_heading_pid_kp = 1.4;
 double return_heading_pid_ki = 0.02;
@@ -112,6 +115,21 @@ double rtk_fix_timeout = 1.0;
 double rtk_max_horizontal_stddev = 0.20;
 double rtk_initial_fix_wait_timeout = 10.0;
 double rtk_goal_retry_delay = 1.0;
+bool navigation_failure_retry_enabled = false;
+double navigation_failure_retry_delay = 1.0;
+int navigation_failure_max_retries = 0;
+bool virtual_subgoal_enabled = false;
+double virtual_subgoal_max_distance = 100.0;
+double virtual_subgoal_costmap_margin = 15.0;
+bool blocked_waypoint_proxy_enabled = false;
+int blocked_waypoint_proxy_after_retries = 1;
+double blocked_waypoint_proxy_min_radius = 1.15;
+double blocked_waypoint_proxy_max_radius = 1.40;
+double blocked_waypoint_proxy_radius_step = 0.25;
+int blocked_waypoint_proxy_angular_samples = 12;
+int blocked_waypoint_proxy_max_candidates_per_retry = 6;
+std::string make_plan_service = "/move_base/make_plan";
+double make_plan_service_wait_timeout = 1.0;
 sensor_msgs::NavSatFix latest_rtk_fix;
 bool have_latest_rtk_fix = false;
 ros::Time latest_rtk_fix_received_at(0);
@@ -1016,6 +1034,236 @@ void publishStop(ros::Publisher& cmd_pub)
     }
 }
 
+std::string lowerCaseCopy(const std::string& input)
+{
+    std::string output = input;
+    std::transform(
+        output.begin(),
+        output.end(),
+        output.begin(),
+        [](unsigned char character)
+        {
+            return static_cast<char>(std::tolower(character));
+        });
+    return output;
+}
+
+bool isRetryableMoveBaseFailure(
+    const actionlib::SimpleClientGoalState& state,
+    const std::string& state_text)
+{
+    if(state != actionlib::SimpleClientGoalState::ABORTED)
+    {
+        return false;
+    }
+
+    const std::string text = lowerCaseCopy(state_text);
+    return text.find("valid plan") != std::string::npos ||
+           text.find("valid control") != std::string::npos ||
+           text.find("global plan") != std::string::npos ||
+           text.find("no path") != std::string::npos ||
+           text.find("oscillat") != std::string::npos;
+}
+
+bool retryLimitAllowsAnotherAttempt(int completed_retries)
+{
+    return navigation_failure_max_retries <= 0 ||
+           completed_retries < navigation_failure_max_retries;
+}
+
+bool waitForNavigationRetry(ros::Publisher& cmd_pub)
+{
+    const double retry_delay = std::max(0.1, navigation_failure_retry_delay);
+    const ros::Time retry_at = ros::Time::now() + ros::Duration(retry_delay);
+    geometry_msgs::Twist stop_cmd;
+    ros::Rate rate(20.0);
+
+    while(ros::ok() && ros::Time::now() < retry_at)
+    {
+        ros::spinOnce();
+        cmd_pub.publish(stop_cmd);
+        rate.sleep();
+    }
+    return ros::ok();
+}
+
+bool buildVirtualSubgoal(
+    tf::TransformListener& listener,
+    const geometry_msgs::PointStamped& actual_goal,
+    geometry_msgs::PointStamped& virtual_goal,
+    double& actual_distance)
+{
+    actual_distance = 0.0;
+    if(!virtual_subgoal_enabled || virtual_subgoal_max_distance <= 0.0)
+    {
+        return false;
+    }
+
+    geometry_msgs::PointStamped robot_point;
+    if(!tryGetRobotPointInFrame(listener, goal_frame, robot_point))
+    {
+        return false;
+    }
+
+    const double dx = actual_goal.point.x - robot_point.point.x;
+    const double dy = actual_goal.point.y - robot_point.point.y;
+    actual_distance = std::hypot(dx, dy);
+    if(!std::isfinite(actual_distance) ||
+       actual_distance <= virtual_subgoal_max_distance)
+    {
+        return false;
+    }
+
+    const double scale = virtual_subgoal_max_distance / actual_distance;
+    virtual_goal = actual_goal;
+    virtual_goal.header.frame_id = goal_frame;
+    virtual_goal.header.stamp = ros::Time(0);
+    virtual_goal.point.x = robot_point.point.x + (scale * dx);
+    virtual_goal.point.y = robot_point.point.y + (scale * dy);
+    virtual_goal.point.z = 0.0;
+    return true;
+}
+
+bool makePlanToPoint(
+    ros::ServiceClient& make_plan_client,
+    const geometry_msgs::PointStamped& candidate)
+{
+    nav_msgs::GetPlan make_plan;
+    // An empty start frame asks move_base to use its current robot pose.
+    make_plan.request.start.header.frame_id.clear();
+    make_plan.request.goal.header.frame_id = goal_frame;
+    make_plan.request.goal.header.stamp = ros::Time::now();
+    make_plan.request.goal.pose.position.x = candidate.point.x;
+    make_plan.request.goal.pose.position.y = candidate.point.y;
+    make_plan.request.goal.pose.position.z = 0.0;
+    make_plan.request.goal.pose.orientation.w = 1.0;
+    make_plan.request.tolerance = 0.0;
+
+    if(!make_plan_client.call(make_plan))
+    {
+        ROS_WARN_THROTTLE(
+            2.0,
+            "Could not call %s while looking for a reachable waypoint proxy.",
+            make_plan_service.c_str());
+        return false;
+    }
+    return !make_plan.response.plan.poses.empty();
+}
+
+bool findReachableProxyGoal(
+    ros::ServiceClient& make_plan_client,
+    tf::TransformListener& listener,
+    const geometry_msgs::PointStamped& blocked_goal,
+    int search_round,
+    geometry_msgs::PointStamped& proxy_goal)
+{
+    if(!blocked_waypoint_proxy_enabled)
+    {
+        return false;
+    }
+
+    if(!make_plan_client.exists() &&
+       !make_plan_client.waitForExistence(
+           ros::Duration(std::max(0.0, make_plan_service_wait_timeout))))
+    {
+        ROS_WARN(
+            "Cannot search for a waypoint proxy because %s is unavailable.",
+            make_plan_service.c_str());
+        return false;
+    }
+
+    geometry_msgs::PointStamped robot_point;
+    if(!tryGetRobotPointInFrame(listener, goal_frame, robot_point))
+    {
+        return false;
+    }
+
+    const int angular_samples = std::max(4, blocked_waypoint_proxy_angular_samples);
+    const int max_candidates = std::max(
+        1,
+        blocked_waypoint_proxy_max_candidates_per_retry);
+    const double angular_step = (2.0 * M_PI) / static_cast<double>(angular_samples);
+    const double base_angle = std::atan2(
+        robot_point.point.y - blocked_goal.point.y,
+        robot_point.point.x - blocked_goal.point.x);
+    const double min_radius = std::max(0.05, blocked_waypoint_proxy_min_radius);
+    const double max_radius = std::max(min_radius, blocked_waypoint_proxy_max_radius);
+    const double radius_step = std::max(0.05, blocked_waypoint_proxy_radius_step);
+
+    std::vector<double> search_radii;
+    for(double radius = min_radius;
+        radius <= max_radius + 1e-6;
+        radius += radius_step)
+    {
+        search_radii.push_back(std::min(radius, max_radius));
+    }
+    if(search_radii.empty() || search_radii.back() < max_radius - 1e-6)
+    {
+        search_radii.push_back(max_radius);
+    }
+
+    const int directions_per_retry = std::max(
+        1,
+        (max_candidates + static_cast<int>(search_radii.size()) - 1) /
+            static_cast<int>(search_radii.size()));
+    const int round_offset =
+        (((search_round * directions_per_retry) % angular_samples) +
+            angular_samples) % angular_samples;
+    int candidates_checked = 0;
+    for(int order = 0; order < angular_samples; ++order)
+    {
+        int ordered_offset = 0;
+        if(order > 0)
+        {
+            const int magnitude = (order + 1) / 2;
+            ordered_offset = (order % 2 == 1) ? magnitude : -magnitude;
+        }
+
+        for(const double radius : search_radii)
+        {
+            if(candidates_checked >= max_candidates)
+            {
+                break;
+            }
+            candidates_checked++;
+            const double angle = base_angle +
+                static_cast<double>(round_offset + ordered_offset) * angular_step;
+            geometry_msgs::PointStamped candidate = blocked_goal;
+            candidate.header.frame_id = goal_frame;
+            candidate.header.stamp = ros::Time(0);
+            candidate.point.x = blocked_goal.point.x + (radius * std::cos(angle));
+            candidate.point.y = blocked_goal.point.y + (radius * std::sin(angle));
+            candidate.point.z = 0.0;
+
+            if(makePlanToPoint(make_plan_client, candidate))
+            {
+                proxy_goal = candidate;
+                ROS_WARN(
+                    "Using reachable proxy x=%.3f y=%.3f, %.2f m from blocked goal x=%.3f y=%.3f.",
+                    proxy_goal.point.x,
+                    proxy_goal.point.y,
+                    radius,
+                    blocked_goal.point.x,
+                    blocked_goal.point.y);
+                return true;
+            }
+        }
+        if(candidates_checked >= max_candidates)
+        {
+            break;
+        }
+    }
+
+    ROS_WARN(
+        "No reachable proxy was found in %d candidate(s), %.2f..%.2f m around blocked goal x=%.3f y=%.3f. The same navigation stage will be retried.",
+        candidates_checked,
+        min_radius,
+        max_radius,
+        blocked_goal.point.x,
+        blocked_goal.point.y);
+    return false;
+}
+
 bool waitForRobotYawInFrame(
     tf::TransformListener& listener,
     const std::string& target_frame,
@@ -1690,11 +1938,12 @@ int main(int argc, char** argv)
         if(wait_count > 3)
         {
             ROS_ERROR("move_base action server did not come up, killing gps_waypoint node...");
-            // Notify joy_launch_control that waypoint following is complete
+            // False is a failure report. True is reserved for a completed route.
             std_msgs::Bool node_ended;
-            node_ended.data = true;
+            node_ended.data = false;
             pubWaypointNodeEnded.publish(node_ended);
             ros::shutdown();
+            return 0;
         }
         ROS_INFO("Waiting for the move_base action server to come up");
     }
@@ -1738,6 +1987,7 @@ int main(int argc, char** argv)
     ros::param::param<double>("/outdoor_waypoint_nav/waypoint_pre_align_min_scan_clearance", waypoint_pre_align_min_scan_clearance, 0.0);
     ros::param::param<double>("/outdoor_waypoint_nav/waypoint_pre_align_scan_timeout", waypoint_pre_align_scan_timeout, 0.5);
     ros::param::param<bool>("/outdoor_waypoint_nav/return_to_start_enabled", return_to_start_enabled, true);
+    ros::param::param<bool>("/outdoor_waypoint_nav/reverse_waypoint_order", reverse_waypoint_order, false);
     ros::param::param<bool>("/outdoor_waypoint_nav/return_heading_pid_enabled", return_heading_pid_enabled, true);
     ros::param::param<double>("/outdoor_waypoint_nav/return_heading_pid_kp", return_heading_pid_kp, 1.4);
     ros::param::param<double>("/outdoor_waypoint_nav/return_heading_pid_ki", return_heading_pid_ki, 0.02);
@@ -1774,6 +2024,21 @@ int main(int argc, char** argv)
     ros::param::param<double>("/outdoor_waypoint_nav/rtk_max_horizontal_stddev", rtk_max_horizontal_stddev, 0.20);
     ros::param::param<double>("/outdoor_waypoint_nav/rtk_initial_fix_wait_timeout", rtk_initial_fix_wait_timeout, 10.0);
     ros::param::param<double>("/outdoor_waypoint_nav/rtk_goal_retry_delay", rtk_goal_retry_delay, 1.0);
+    ros::param::param<bool>("/outdoor_waypoint_nav/navigation_failure_retry_enabled", navigation_failure_retry_enabled, false);
+    ros::param::param<double>("/outdoor_waypoint_nav/navigation_failure_retry_delay", navigation_failure_retry_delay, 1.0);
+    ros::param::param<int>("/outdoor_waypoint_nav/navigation_failure_max_retries", navigation_failure_max_retries, 0);
+    ros::param::param<bool>("/outdoor_waypoint_nav/virtual_subgoal_enabled", virtual_subgoal_enabled, false);
+    ros::param::param<double>("/outdoor_waypoint_nav/virtual_subgoal_max_distance", virtual_subgoal_max_distance, 100.0);
+    ros::param::param<double>("/outdoor_waypoint_nav/virtual_subgoal_costmap_margin", virtual_subgoal_costmap_margin, 15.0);
+    ros::param::param<bool>("/outdoor_waypoint_nav/blocked_waypoint_proxy_enabled", blocked_waypoint_proxy_enabled, false);
+    ros::param::param<int>("/outdoor_waypoint_nav/blocked_waypoint_proxy_after_retries", blocked_waypoint_proxy_after_retries, 1);
+    ros::param::param<double>("/outdoor_waypoint_nav/blocked_waypoint_proxy_min_radius", blocked_waypoint_proxy_min_radius, 1.15);
+    ros::param::param<double>("/outdoor_waypoint_nav/blocked_waypoint_proxy_max_radius", blocked_waypoint_proxy_max_radius, 1.40);
+    ros::param::param<double>("/outdoor_waypoint_nav/blocked_waypoint_proxy_radius_step", blocked_waypoint_proxy_radius_step, 0.25);
+    ros::param::param<int>("/outdoor_waypoint_nav/blocked_waypoint_proxy_angular_samples", blocked_waypoint_proxy_angular_samples, 12);
+    ros::param::param<int>("/outdoor_waypoint_nav/blocked_waypoint_proxy_max_candidates_per_retry", blocked_waypoint_proxy_max_candidates_per_retry, 6);
+    ros::param::param<std::string>("/outdoor_waypoint_nav/make_plan_service", make_plan_service, "/move_base/make_plan");
+    ros::param::param<double>("/outdoor_waypoint_nav/make_plan_service_wait_timeout", make_plan_service_wait_timeout, 1.0);
     rtk_arrival_radius = std::max(0.0, rtk_arrival_radius);
     rtk_final_arrival_radius = std::max(0.0, rtk_final_arrival_radius);
     rtk_arrival_hold_time = std::max(0.0, rtk_arrival_hold_time);
@@ -1781,6 +2046,80 @@ int main(int argc, char** argv)
     rtk_max_horizontal_stddev = std::max(0.0, rtk_max_horizontal_stddev);
     rtk_initial_fix_wait_timeout = std::max(0.0, rtk_initial_fix_wait_timeout);
     rtk_goal_retry_delay = std::max(0.1, rtk_goal_retry_delay);
+    navigation_failure_retry_delay = std::max(0.1, navigation_failure_retry_delay);
+    navigation_failure_max_retries = std::max(0, navigation_failure_max_retries);
+    virtual_subgoal_max_distance = std::max(1.0, virtual_subgoal_max_distance);
+    virtual_subgoal_costmap_margin = std::max(0.0, virtual_subgoal_costmap_margin);
+    blocked_waypoint_proxy_after_retries = std::max(1, blocked_waypoint_proxy_after_retries);
+    blocked_waypoint_proxy_min_radius = std::max(0.05, blocked_waypoint_proxy_min_radius);
+    blocked_waypoint_proxy_max_radius = std::max(
+        blocked_waypoint_proxy_min_radius,
+        blocked_waypoint_proxy_max_radius);
+    blocked_waypoint_proxy_radius_step = std::max(0.05, blocked_waypoint_proxy_radius_step);
+    blocked_waypoint_proxy_angular_samples = std::max(4, blocked_waypoint_proxy_angular_samples);
+    blocked_waypoint_proxy_max_candidates_per_retry = std::max(1, blocked_waypoint_proxy_max_candidates_per_retry);
+    make_plan_service_wait_timeout = std::max(0.0, make_plan_service_wait_timeout);
+
+    if(virtual_subgoal_enabled)
+    {
+        double global_costmap_width = 0.0;
+        double global_costmap_height = 0.0;
+        if(ros::param::get("/move_base/global_costmap/width", global_costmap_width) &&
+           ros::param::get("/move_base/global_costmap/height", global_costmap_height))
+        {
+            const double safe_costmap_radius =
+                (0.5 * std::min(global_costmap_width, global_costmap_height)) -
+                virtual_subgoal_costmap_margin;
+            if(safe_costmap_radius <= 1.0)
+            {
+                ROS_ERROR(
+                    "Virtual subgoals disabled: global costmap %.1fx%.1f m with %.1f m margin leaves no usable planning radius.",
+                    global_costmap_width,
+                    global_costmap_height,
+                    virtual_subgoal_costmap_margin);
+                virtual_subgoal_enabled = false;
+            }
+            else if(virtual_subgoal_max_distance > safe_costmap_radius)
+            {
+                ROS_WARN(
+                    "Clamping virtual_subgoal_max_distance from %.1f m to %.1f m for the %.1fx%.1f m rolling global costmap.",
+                    virtual_subgoal_max_distance,
+                    safe_costmap_radius,
+                    global_costmap_width,
+                    global_costmap_height);
+                virtual_subgoal_max_distance = safe_costmap_radius;
+            }
+        }
+        else
+        {
+            ROS_WARN(
+                "Could not read global costmap width/height; using configured virtual subgoal distance %.1f m.",
+                virtual_subgoal_max_distance);
+        }
+    }
+
+    if(blocked_waypoint_proxy_enabled && rtk_arrival_enabled &&
+       blocked_waypoint_proxy_max_radius >= rtk_arrival_radius)
+    {
+        const double allowed_proxy_radius = rtk_arrival_radius - 0.05;
+        if(allowed_proxy_radius < blocked_waypoint_proxy_min_radius)
+        {
+            ROS_ERROR(
+                "Waypoint proxy disabled: RTK intermediate arrival radius %.2f m is smaller than proxy minimum radius %.2f m plus margin.",
+                rtk_arrival_radius,
+                blocked_waypoint_proxy_min_radius);
+            blocked_waypoint_proxy_enabled = false;
+        }
+        else
+        {
+            ROS_WARN(
+                "Clamping waypoint proxy maximum radius from %.2f m to %.2f m so it remains inside the %.2f m RTK arrival radius.",
+                blocked_waypoint_proxy_max_radius,
+                allowed_proxy_radius,
+                rtk_arrival_radius);
+            blocked_waypoint_proxy_max_radius = allowed_proxy_radius;
+        }
+    }
     if(waypoint_marker_topic != "/outdoor_waypoint_nav/collected_waypoints")
     {
         pubWaypointMarkers.shutdown();
@@ -1788,8 +2127,22 @@ int main(int argc, char** argv)
     }
     ros::Publisher pubPreferredAvoidanceTurn =
         n.advertise<std_msgs::Float64>(preferred_avoidance_turn_topic, 10);
+    ros::ServiceClient makePlanClient =
+        n.serviceClient<nav_msgs::GetPlan>(make_plan_service);
     ros::Subscriber subScan = n.subscribe("/front/scan", 20, scanCB);
     ros::Subscriber subSafetyReplan = n.subscribe(safety_replan_topic, 10, safetyReplanCB);
+    ROS_INFO(
+        "Obstacle navigation resilience: retry=%s delay=%.1fs max_retries=%d (0=unlimited), virtual_subgoal=%s max_distance=%.1fm, waypoint_proxy=%s radius=%.2f..%.2fm after_retry=%d candidates_per_retry=%d.",
+        navigation_failure_retry_enabled ? "enabled" : "disabled",
+        navigation_failure_retry_delay,
+        navigation_failure_max_retries,
+        virtual_subgoal_enabled ? "enabled" : "disabled",
+        virtual_subgoal_max_distance,
+        blocked_waypoint_proxy_enabled ? "enabled" : "disabled",
+        blocked_waypoint_proxy_min_radius,
+        blocked_waypoint_proxy_max_radius,
+        blocked_waypoint_proxy_after_retries,
+        blocked_waypoint_proxy_max_candidates_per_retry);
     if(waypoint_pre_align_enabled)
     {
         ROS_INFO(
@@ -1851,6 +2204,13 @@ int main(int argc, char** argv)
 
     //Reading waypoints from text file and output results
     waypointVect = getWaypoints(path_local);
+    if(reverse_waypoint_order)
+    {
+        std::reverse(waypointVect.begin(), waypointVect.end());
+        ROS_INFO(
+            "Reverse waypoint order enabled: following waypoint %d back through waypoint 1.",
+            totalWaypoints);
+    }
 
     double initial_robot_yaw = 0.0;
     bool have_initial_robot_yaw = waitForRobotYawInFrame(tf_listener, goal_frame, 5.0, initial_robot_yaw);
@@ -1999,7 +2359,13 @@ int main(int argc, char** argv)
         bool waypoint_reached = false;
         bool marker_turned_green = false;
         int recovery_attempt_count = 0;
+        int navigation_failure_retry_count = 0;
+        int proxy_search_round = 0;
         geometry_msgs::PointStamped active_map_point = map_point;
+        bool have_navigation_override = false;
+        bool navigation_override_is_virtual = false;
+        geometry_msgs::PointStamped navigation_override_point;
+        geometry_msgs::PointStamped navigation_override_anchor_point;
         while(ros::ok() && !waypoint_reached)
         {
             bool waypoint_reached_by_radius = false;
@@ -2013,10 +2379,40 @@ int main(int argc, char** argv)
                 ROS_INFO("Captured initial robot yaw before first goal: %.1f deg.", initial_robot_yaw * 180.0 / M_PI);
             }
 
+            geometry_msgs::PointStamped navigation_map_point = active_map_point;
+            bool navigation_goal_is_virtual = false;
+            bool navigation_goal_is_proxy = false;
+            geometry_msgs::PointStamped navigation_proxy_anchor_point = active_map_point;
+            double actual_goal_distance = 0.0;
+            if(have_navigation_override)
+            {
+                navigation_map_point = navigation_override_point;
+                navigation_proxy_anchor_point = navigation_override_anchor_point;
+                navigation_goal_is_virtual = navigation_override_is_virtual;
+                navigation_goal_is_proxy = true;
+            }
+            else if(buildVirtualSubgoal(
+                        tf_listener,
+                        active_map_point,
+                        navigation_map_point,
+                        actual_goal_distance))
+            {
+                navigation_goal_is_virtual = true;
+                navigation_proxy_anchor_point = navigation_map_point;
+                ROS_INFO(
+                    "Waypoint %d/%d is %.1f m away; sending virtual subgoal %.1f m ahead at x=%.3f y=%.3f.",
+                    currentWaypointIndex,
+                    totalWaypoints,
+                    actual_goal_distance,
+                    virtual_subgoal_max_distance,
+                    navigation_map_point.point.x,
+                    navigation_map_point.point.y);
+            }
+
             move_base_msgs::MoveBaseGoal goal = buildGoal(
                 have_prev_point,
                 map_prev,
-                active_map_point,
+                navigation_map_point,
                 !final_point,
                 map_next,
                 final_point,
@@ -2024,11 +2420,21 @@ int main(int argc, char** argv)
                 have_current_yaw,
                 current_robot_yaw);
 
-            ROS_INFO("Sending waypoint %d/%d", currentWaypointIndex, totalWaypoints);
+            ROS_INFO(
+                "Sending %s%s for waypoint %d/%d at x=%.3f y=%.3f",
+                navigation_goal_is_virtual ? "virtual subgoal" : "goal",
+                navigation_goal_is_proxy ? " proxy" : "",
+                currentWaypointIndex,
+                totalWaypoints,
+                navigation_map_point.point.x,
+                navigation_map_point.point.y);
             ac.sendGoal(goal);
             last_auto_replan_time = ros::Time::now();
 
-            bool preview_goal_sent = final_point || !waypoint_goal_heading_enabled;
+            bool preview_goal_sent = final_point ||
+                navigation_goal_is_virtual ||
+                navigation_goal_is_proxy ||
+                !waypoint_goal_heading_enabled;
             while(ros::ok())
             {
                 ros::spinOnce();
@@ -2048,9 +2454,11 @@ int main(int argc, char** argv)
                 publishPreferredAvoidanceTurn(
                     pubPreferredAvoidanceTurn,
                     tf_listener,
-                    active_map_point,
-                    map_next,
-                    final_point,
+                    navigation_map_point,
+                    (navigation_goal_is_virtual || navigation_goal_is_proxy) ?
+                        navigation_map_point : map_next,
+                    (navigation_goal_is_virtual || navigation_goal_is_proxy) ?
+                        true : final_point,
                     preview_goal_sent);
 
                 geometry_msgs::PointStamped robot_point;
@@ -2067,7 +2475,7 @@ int main(int argc, char** argv)
                         move_base_msgs::MoveBaseGoal preview_goal = buildGoal(
                             have_prev_point,
                             map_prev,
-                            active_map_point,
+                            navigation_map_point,
                             !final_point,
                             map_next,
                             final_point,
@@ -2155,7 +2563,7 @@ int main(int argc, char** argv)
                     move_base_msgs::MoveBaseGoal replanned_goal = buildGoal(
                         have_prev_point,
                         map_prev,
-                        active_map_point,
+                        navigation_map_point,
                         !final_point,
                         map_next,
                         final_point,
@@ -2176,7 +2584,7 @@ int main(int argc, char** argv)
                     move_base_msgs::MoveBaseGoal refreshed_goal = buildGoal(
                         have_prev_point,
                         map_prev,
-                        active_map_point,
+                        navigation_map_point,
                         !final_point,
                         map_next,
                         final_point,
@@ -2211,6 +2619,22 @@ int main(int argc, char** argv)
 
             if(ac.getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
             {
+                if(navigation_goal_is_virtual)
+                {
+                    navigation_failure_retry_count = 0;
+                    have_navigation_override = false;
+                    ROS_INFO(
+                        "Reached virtual subgoal for waypoint %d/%d. Re-centering the rolling costmap and continuing toward the real waypoint.",
+                        currentWaypointIndex,
+                        totalWaypoints);
+                    continue;
+                }
+
+                if(navigation_goal_is_proxy)
+                {
+                    have_navigation_override = false;
+                }
+
                 if(rtk_arrival_enabled)
                 {
                     std::string precise_rtk_reason;
@@ -2253,6 +2677,7 @@ int main(int argc, char** argv)
                            rtk_distance))
                     {
                         active_map_point = corrected_map_point;
+                        have_navigation_override = false;
                         const double active_arrival_radius =
                             rtkArrivalRadiusForWaypoint(currentWaypointIndex, totalWaypoints);
                         ROS_WARN(
@@ -2313,6 +2738,54 @@ int main(int argc, char** argv)
                 ROS_WARN("Custom oscillation recovery did not complete cleanly. Falling back to normal failure handling.");
             }
 
+            const bool retryable_navigation_failure =
+                isRetryableMoveBaseFailure(ac.getState(), move_base_text);
+            if(navigation_failure_retry_enabled &&
+               retryable_navigation_failure &&
+               retryLimitAllowsAnotherAttempt(navigation_failure_retry_count))
+            {
+                navigation_failure_retry_count++;
+                publishStop(pubRecoveryCmd);
+                have_navigation_override = false;
+
+                const bool proxy_allowed_for_stage =
+                    navigation_goal_is_virtual || !final_point;
+                if(blocked_waypoint_proxy_enabled &&
+                   proxy_allowed_for_stage &&
+                   navigation_failure_retry_count >= blocked_waypoint_proxy_after_retries)
+                {
+                    geometry_msgs::PointStamped proxy_goal;
+                    if(findReachableProxyGoal(
+                           makePlanClient,
+                           tf_listener,
+                           navigation_proxy_anchor_point,
+                           proxy_search_round,
+                           proxy_goal))
+                    {
+                        navigation_override_point = proxy_goal;
+                        navigation_override_anchor_point = navigation_proxy_anchor_point;
+                        navigation_override_is_virtual = navigation_goal_is_virtual;
+                        have_navigation_override = true;
+                    }
+                    proxy_search_round++;
+                }
+
+                ROS_WARN(
+                    "Waypoint %d/%d temporarily blocked (move_base: %s). Holding zero velocity for %.1f s, then retrying%s. Retry %d%s.",
+                    currentWaypointIndex,
+                    totalWaypoints,
+                    move_base_text.c_str(),
+                    navigation_failure_retry_delay,
+                    have_navigation_override ? " with a reachable proxy" : " the same navigation stage",
+                    navigation_failure_retry_count,
+                    navigation_failure_max_retries <= 0 ? " (unlimited)" : "");
+                if(waitForNavigationRetry(pubRecoveryCmd))
+                {
+                    continue;
+                }
+                break;
+            }
+
             ROS_ERROR(
                 "Failed to reach waypoint %d/%d. move_base state: %s. %s",
                 currentWaypointIndex,
@@ -2322,9 +2795,11 @@ int main(int argc, char** argv)
             ROS_ERROR("GPS waypoint unreachable.");
             ROS_INFO("Exiting node...");
             std_msgs::Bool node_ended;
-            node_ended.data = true;
+            // False prevents a failed/blocked route from being reported as complete.
+            node_ended.data = false;
             pubWaypointNodeEnded.publish(node_ended);
             ros::shutdown();
+            return 0;
         }
     } // End for loop iterating through waypoint vector
 
@@ -2397,21 +2872,43 @@ int main(int argc, char** argv)
         else
         {
             int return_recovery_attempt_count = 0;
+            int return_navigation_failure_retry_count = 0;
             while(ros::ok())
             {
                 double current_robot_yaw = 0.0;
                 const bool have_current_yaw = tryGetRobotYawInFrame(tf_listener, goal_frame, current_robot_yaw);
+                geometry_msgs::PointStamped return_navigation_point = map_point;
+                double return_actual_distance = 0.0;
+                const bool return_goal_is_virtual = buildVirtualSubgoal(
+                    tf_listener,
+                    map_point,
+                    return_navigation_point,
+                    return_actual_distance);
+                if(return_goal_is_virtual)
+                {
+                    ROS_INFO(
+                        "Return waypoint is %.1f m away; sending virtual return subgoal %.1f m ahead at x=%.3f y=%.3f.",
+                        return_actual_distance,
+                        virtual_subgoal_max_distance,
+                        return_navigation_point.point.x,
+                        return_navigation_point.point.y);
+                }
                 move_base_msgs::MoveBaseGoal return_goal = buildGoal(
                     true,
                     map_return_prev,
-                    map_point,
+                    return_navigation_point,
                     true,
                     map_next,
                     false,
                     false,
                     have_current_yaw,
                     current_robot_yaw);
-                ROS_INFO("Sending return goal to waypoint 1/%d", totalWaypoints);
+                ROS_INFO(
+                    "Sending %s to waypoint 1/%d at x=%.3f y=%.3f",
+                    return_goal_is_virtual ? "virtual return subgoal" : "return goal",
+                    totalWaypoints,
+                    return_navigation_point.point.x,
+                    return_navigation_point.point.y);
                 ac.sendGoal(return_goal);
                 last_auto_replan_time = ros::Time::now();
                 while(ros::ok())
@@ -2420,9 +2917,9 @@ int main(int argc, char** argv)
                     publishPreferredAvoidanceTurn(
                         pubPreferredAvoidanceTurn,
                         tf_listener,
-                        map_point,
-                        map_next,
-                        false,
+                        return_navigation_point,
+                        return_goal_is_virtual ? return_navigation_point : map_next,
+                        return_goal_is_virtual,
                         false);
 
                     if(consumeSafetyReplanRequest())
@@ -2432,7 +2929,7 @@ int main(int argc, char** argv)
                         move_base_msgs::MoveBaseGoal replanned_return_goal = buildGoal(
                             true,
                             map_return_prev,
-                            map_point,
+                            return_navigation_point,
                             true,
                             map_next,
                             false,
@@ -2452,7 +2949,7 @@ int main(int argc, char** argv)
                         move_base_msgs::MoveBaseGoal refreshed_return_goal = buildGoal(
                             true,
                             map_return_prev,
-                            map_point,
+                            return_navigation_point,
                             true,
                             map_next,
                             false,
@@ -2474,6 +2971,14 @@ int main(int argc, char** argv)
 
                 if(ac.getState() == actionlib::SimpleClientGoalState::SUCCEEDED)
                 {
+                    if(return_goal_is_virtual)
+                    {
+                        return_navigation_failure_retry_count = 0;
+                        ROS_INFO(
+                            "Reached virtual return subgoal. Re-centering the rolling costmap and continuing to waypoint 1/%d.",
+                            totalWaypoints);
+                        continue;
+                    }
                     ROS_INFO("Returned to waypoint 1/%d", totalWaypoints);
                     returned_to_start = true;
                     break;
@@ -2504,6 +3009,29 @@ int main(int argc, char** argv)
                     ROS_WARN("Custom oscillation recovery did not complete cleanly during return-to-start. Falling back to normal failure handling.");
                 }
 
+                const bool retryable_navigation_failure =
+                    isRetryableMoveBaseFailure(ac.getState(), move_base_text);
+                if(navigation_failure_retry_enabled &&
+                   retryable_navigation_failure &&
+                   retryLimitAllowsAnotherAttempt(
+                       return_navigation_failure_retry_count))
+                {
+                    return_navigation_failure_retry_count++;
+                    publishStop(pubRecoveryCmd);
+                    ROS_WARN(
+                        "Return to waypoint 1/%d temporarily blocked (move_base: %s). Holding zero velocity for %.1f s, then retrying. Retry %d%s.",
+                        totalWaypoints,
+                        move_base_text.c_str(),
+                        navigation_failure_retry_delay,
+                        return_navigation_failure_retry_count,
+                        navigation_failure_max_retries <= 0 ? " (unlimited)" : "");
+                    if(waitForNavigationRetry(pubRecoveryCmd))
+                    {
+                        continue;
+                    }
+                    break;
+                }
+
                 ROS_ERROR(
                     "Failed to return to waypoint 1/%d. move_base state: %s. %s",
                     totalWaypoints,
@@ -2513,9 +3041,10 @@ int main(int argc, char** argv)
                 ROS_INFO("Exiting node...");
 
                 std_msgs::Bool node_ended;
-                node_ended.data = true;
+                node_ended.data = false;
                 pubWaypointNodeEnded.publish(node_ended);
                 ros::shutdown();
+                return 0;
             }
         }
 
@@ -2546,6 +3075,21 @@ int main(int argc, char** argv)
                 ROS_WARN("Return heading PID skipped because the initial robot yaw was not available.");
             }
         }
+    }
+
+    if(!ros::ok() || reachedWaypoints != totalWaypoints)
+    {
+        ROS_WARN(
+            "Waypoint controller ended before route completion: reached %d/%d waypoint(s). Completion will not be published.",
+            reachedWaypoints,
+            totalWaypoints);
+        if(ros::ok())
+        {
+            std_msgs::Bool node_ended;
+            node_ended.data = false;
+            pubWaypointNodeEnded.publish(node_ended);
+        }
+        return 0;
     }
 
     ROS_INFO("Final status: reached %d/%d waypoint(s).", reachedWaypoints, totalWaypoints);

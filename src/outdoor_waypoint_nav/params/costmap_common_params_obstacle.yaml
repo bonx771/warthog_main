@@ -2,9 +2,10 @@
 obstacle_range: 12.0
 raytrace_range: 15.0
 
-# Measured UGV footprint: 1.52 x 1.38 m. Padding adds a 5 cm safety margin.
+# Measured UGV footprint: 1.52 x 1.38 m. Keep a small 3 cm hard safety
+# margin for real LiDAR/localization error while allowing narrow passages.
 footprint: [[-0.76, -0.69], [-0.76, 0.69], [0.76, 0.69], [0.76, -0.69]]
-footprint_padding: 0.05
+footprint_padding: 0.03
 
 plugins:
   - {name: obstacles_voxel_layer, type: "costmap_2d::VoxelLayer"}
@@ -40,10 +41,11 @@ obstacles_voxel_layer:
 
 inflater_layer:
   # The exact 1.52 x 1.38 m footprint still performs hard collision checks.
-  # This smaller, faster-decaying soft field keeps paths close to the direct
-  # waypoint line instead of making a wide arc around every return.
-  inflation_radius: 1.10
-  cost_scaling_factor: 8.0
+  # With 3 cm padding, the lateral inscribed radius is about 0.72 m. A 0.90 m
+  # inflation radius leaves roughly 0.18 m of soft cost beside the body. The
+  # steeper decay lets the planners use that band when a passage is narrow.
+  inflation_radius: 0.90
+  cost_scaling_factor: 10.0
 
 lethal_cost_threshold: 100
 robot_base_frame: base_link

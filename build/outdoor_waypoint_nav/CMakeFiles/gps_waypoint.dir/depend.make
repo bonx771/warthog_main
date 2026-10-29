@@ -43,6 +43,10 @@ outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o: /opt/ro
 outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o: /opt/ros/noetic/include/move_base_msgs/MoveBaseFeedback.h
 outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o: /opt/ros/noetic/include/move_base_msgs/MoveBaseGoal.h
 outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o: /opt/ros/noetic/include/move_base_msgs/MoveBaseResult.h
+outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o: /opt/ros/noetic/include/nav_msgs/GetPlan.h
+outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o: /opt/ros/noetic/include/nav_msgs/GetPlanRequest.h
+outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o: /opt/ros/noetic/include/nav_msgs/GetPlanResponse.h
+outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o: /opt/ros/noetic/include/nav_msgs/Path.h
 outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o: /opt/ros/noetic/include/ros/advertise_options.h
 outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o: /opt/ros/noetic/include/ros/advertise_service_options.h
 outdoor_waypoint_nav/CMakeFiles/gps_waypoint.dir/src/gps_waypoint.cpp.o: /opt/ros/noetic/include/ros/assert.h
