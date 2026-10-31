@@ -1,11 +1,8 @@
 navsat_transform:
   frequency: 50
-  # Let both EKFs accept and settle on the absolute IMU yaw before the static
-  # UTM->map transform is frozen. Freezing it during EKF yaw initialization
-  # was the cause of the observed 114-degree map jump.
   delay: 15.0
-  magnetic_declination_radians: -0.0304567
-  yaw_offset: -2.000
+  magnetic_declination_radians: 2.97271
+  yaw_offset: 1.716
   zero_altitude: true
   broadcast_utm_transform: true
   publish_filtered_gps: true

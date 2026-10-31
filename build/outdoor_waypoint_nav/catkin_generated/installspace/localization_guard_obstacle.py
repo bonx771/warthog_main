@@ -105,10 +105,6 @@ class LocalizationGuardObstacle:
         self.jump_rate = math.radians(
             float(rospy.get_param("~jump_rate_deg_per_sec", 45.0))
         )
-        self.jump_distance = float(rospy.get_param("~jump_distance_m", 0.50))
-        self.jump_linear_rate = float(
-            rospy.get_param("~jump_linear_rate_mps", 2.0)
-        )
 
         if self.check_frequency <= 0.0:
             raise ValueError("check_frequency must be positive")
@@ -118,10 +114,6 @@ class LocalizationGuardObstacle:
             raise ValueError("sensor_timeout must be positive")
         if self.imu_tf_yaw_tolerance <= 0.0:
             raise ValueError("imu_tf_yaw_tolerance_deg must be positive")
-        if self.jump_distance <= 0.0:
-            raise ValueError("jump_distance_m must be positive")
-        if self.jump_linear_rate <= 0.0:
-            raise ValueError("jump_linear_rate_mps must be positive")
 
         self.lock = threading.RLock()
         self.start_time = time.monotonic()
@@ -251,8 +243,6 @@ class LocalizationGuardObstacle:
                     rospy.Duration(0.02),
                 )
                 yaw = quaternion_yaw(transform.transform.rotation)
-                position_x = transform.transform.translation.x
-                position_y = transform.transform.translation.y
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
                     tf2_ros.ExtrapolationException, ValueError):
                 missing_frames.append(target_frame)
@@ -263,11 +253,11 @@ class LocalizationGuardObstacle:
             self._prune_history(history, now)
 
             previous = self.previous_tf.get(target_frame)
-            self.previous_tf[target_frame] = (now, position_x, position_y, yaw)
+            self.previous_tf[target_frame] = (now, yaw)
             if previous is None:
                 continue
             dt = now - previous[0]
-            delta = abs(angle_difference(yaw, previous[3]))
+            delta = abs(angle_difference(yaw, previous[1]))
             if (
                 0.0 < dt <= self.sensor_timeout
                 and delta >= self.jump_angle
@@ -279,20 +269,6 @@ class LocalizationGuardObstacle:
                         self.base_frame,
                         math.degrees(delta),
                         dt,
-                    )
-                )
-
-            translation_delta = math.hypot(
-                position_x - previous[1], position_y - previous[2]
-            )
-            if (
-                0.0 < dt <= self.sensor_timeout
-                and translation_delta >= self.jump_distance
-                and translation_delta / dt >= self.jump_linear_rate
-            ):
-                jump_reason = (
-                    "{}->{} position jumped {:.2f}m in {:.2f}s".format(
-                        target_frame, self.base_frame, translation_delta, dt
                     )
                 )
 

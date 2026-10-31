@@ -105,8 +105,8 @@ class ObstacleCmdVelSmoother:
         self.align_exit_angle = math.radians(
             float(rospy.get_param("~align_exit_angle_deg", 35.0))
         )
-        self.slow_curve_max_linear = float(
-            rospy.get_param("~slow_curve_max_linear", 0.30)
+        self.max_lateral_accel = float(
+            rospy.get_param("~max_lateral_accel", 0.30)
         )
         self.transition_linear_threshold = float(
             rospy.get_param("~transition_linear_threshold", 0.05)
@@ -116,6 +116,15 @@ class ObstacleCmdVelSmoother:
         )
         self.align_min_angular = float(
             rospy.get_param("~align_min_angular", 0.25)
+        )
+        self.align_rotation_margin = math.radians(
+            float(rospy.get_param("~align_rotation_margin_deg", 20.0))
+        )
+        self.align_yaw_progress_timeout = float(
+            rospy.get_param("~align_yaw_progress_timeout", 1.5)
+        )
+        self.align_retry_pause = float(
+            rospy.get_param("~align_retry_pause", 1.0)
         )
         self.scan_topic = rospy.get_param("~scan_topic", "/front/scan")
         self.align_min_scan_clearance = float(
@@ -132,7 +141,10 @@ class ObstacleCmdVelSmoother:
             ("angular_decel", self.angular_decel),
             ("max_linear", self.max_linear),
             ("max_angular", self.max_angular),
+            ("max_lateral_accel", self.max_lateral_accel),
             ("command_timeout", self.command_timeout),
+            ("align_yaw_progress_timeout", self.align_yaw_progress_timeout),
+            ("align_retry_pause", self.align_retry_pause),
         ):
             if value <= 0.0:
                 raise ValueError("{} must be positive".format(name))
@@ -147,9 +159,6 @@ class ObstacleCmdVelSmoother:
         )
         self.heading_lookahead = max(0.10, self.heading_lookahead)
         self.heading_data_timeout = max(0.10, self.heading_data_timeout)
-        self.slow_curve_max_linear = min(
-            self.max_linear, max(0.0, self.slow_curve_max_linear)
-        )
         if not (
             0.0 <= self.slow_exit_drive_angle <= self.drive_enter_slow_angle
             < self.align_enter_angle
@@ -163,7 +172,13 @@ class ObstacleCmdVelSmoother:
 
         self.lock = threading.Lock()
         self.motion_state = "DRIVE"
-        self.explicit_align = False
+        self.in_place_turn_blocked = False
+        self.alignment_rotation_limited = False
+        self.alignment_rotation = 0.0
+        self.alignment_rotation_limit = 0.0
+        self.alignment_direction = 1.0
+        self.alignment_last_yaw_progress_time = None
+        self.alignment_retry_after = 0.0
         self.raw_linear = 0.0
         self.raw_angular = 0.0
         self.latest_odom = None
@@ -206,8 +221,9 @@ class ObstacleCmdVelSmoother:
             "linear accel/decel=%.2f/%.2f m/s^2 | "
             "angular accel/decel=%.2f/%.2f rad/s^2 | "
             "turn startup floor=%.2f rad/s | continuous turn floor=%s | "
-            "planner-zero=%s | heading states=%s (drive<%.1fdeg, "
-            "slow<=%.2fm/s, align>%.1fdeg, exit<%.1fdeg)",
+            "planner-zero=%s | heading states=%s (slow>%.1fdeg, "
+            "drive<%.1fdeg, align>%.1fdeg, exit<%.1fdeg) | "
+            "lateral acceleration<=%.2fm/s^2",
             self.input_topic,
             self.output_topic,
             self.frequency,
@@ -220,9 +236,10 @@ class ObstacleCmdVelSmoother:
             "ramped" if self.smooth_zero_commands else "immediate",
             "enabled" if self.heading_control_enabled else "disabled",
             math.degrees(self.drive_enter_slow_angle),
-            self.slow_curve_max_linear,
+            math.degrees(self.slow_exit_drive_angle),
             math.degrees(self.align_enter_angle),
             math.degrees(self.align_exit_angle),
+            self.max_lateral_accel,
         )
         if self.require_navigation_ready:
             rospy.logwarn(
@@ -240,12 +257,24 @@ class ObstacleCmdVelSmoother:
 
     def odom_callback(self, msg):
         with self.lock:
+            yaw = yaw_from_quaternion(msg.pose.pose.orientation)
+            received_at = time.monotonic()
+            if (
+                self.latest_odom is not None
+                and self.motion_state in ("ALIGN", "ALIGN_BRAKE")
+                and received_at - self.latest_odom[4]
+                <= self.heading_data_timeout
+            ):
+                yaw_delta = abs(normalize_angle(yaw - self.latest_odom[2]))
+                self.alignment_rotation += yaw_delta
+                if yaw_delta >= math.radians(0.2):
+                    self.alignment_last_yaw_progress_time = received_at
             self.latest_odom = (
                 float(msg.pose.pose.position.x),
                 float(msg.pose.pose.position.y),
-                yaw_from_quaternion(msg.pose.pose.orientation),
+                yaw,
                 self.normalized_frame(msg.header.frame_id),
-                time.monotonic(),
+                received_at,
             )
 
     def plan_callback(self, msg):
@@ -330,6 +359,21 @@ class ObstacleCmdVelSmoother:
             return
         old_state = self.motion_state
         self.motion_state = new_state
+        if (
+            new_state in ("ALIGN", "ALIGN_BRAKE")
+            and old_state not in ("ALIGN", "ALIGN_BRAKE")
+        ):
+            self.alignment_rotation = 0.0
+            self.alignment_last_yaw_progress_time = time.monotonic()
+            self.alignment_direction = (
+                1.0 if heading_error is None or heading_error >= 0.0 else -1.0
+            )
+            self.alignment_retry_after = 0.0
+            self.alignment_rotation_limit = max(
+                math.radians(15.0),
+                max(0.0, abs(heading_error or 0.0) - self.align_exit_angle)
+                + self.align_rotation_margin,
+            )
         if heading_error is None:
             rospy.loginfo(
                 "[cmd_vel_smoother_obstacle] motion state %s -> %s",
@@ -345,70 +389,177 @@ class ObstacleCmdVelSmoother:
                 math.degrees(heading_error),
             )
 
+    def alignment_stop_angle_locked(self):
+        braking_angle = (
+            self.output_angular * self.output_angular
+            / (2.0 * self.angular_decel)
+        )
+        return self.align_exit_angle + braking_angle + math.radians(2.0)
+
     def apply_motion_state_targets_locked(self, heading_error):
-        if self.motion_state == "DRIVE":
-            self.target_linear = self.raw_linear
-            self.target_angular = self.raw_angular
-        elif self.motion_state == "SLOW_CURVE":
-            self.target_linear = self.clamp(
-                self.raw_linear, self.slow_curve_max_linear
-            )
-            self.target_angular = self.raw_angular
+        if self.motion_state in ("DRIVE", "SLOW_CURVE"):
+            linear = self.raw_linear
+            angular = self.raw_angular
+            if abs(linear) <= self.in_place_linear_threshold:
+                self.target_linear = 0.0
+                self.target_angular = 0.0
+                return
+            curvature = abs(angular / linear)
+            if heading_error is not None:
+                path_curvature = abs(
+                    2.0 * math.sin(heading_error) / self.heading_lookahead
+                )
+                curvature = max(curvature, path_curvature)
+            if curvature > 1e-6:
+                speed_limit = math.sqrt(
+                    self.max_lateral_accel / curvature
+                )
+                scale = min(1.0, speed_limit / abs(linear))
+                linear *= scale
+                angular *= scale
+            self.target_linear = linear
+            self.target_angular = angular
         elif self.motion_state == "ALIGN":
             self.target_linear = 0.0
-            angular = self.raw_angular
-            # Always use the normalized global-plan heading error when it is
-            # available. TrajectoryPlannerROS can request an in-place turn in
-            # the opposite direction near a narrow passage; blindly keeping
-            # that raw sign makes the UGV take the long way around (almost a
-            # complete revolution) even though the path is only a few degrees
-            # away. Fall back to the planner sign only when plan/odom heading
-            # data is unavailable or stale.
-            if heading_error is not None:
-                magnitude = min(
-                    self.max_angular,
-                    max(abs(angular), self.align_min_angular),
-                )
-                angular = magnitude if heading_error > 0.0 else -magnitude
-            elif self.explicit_align and abs(angular) > self.deadband:
-                magnitude = min(
-                    self.max_angular,
-                    max(abs(angular), self.align_min_angular),
-                )
-                angular = magnitude if angular > 0.0 else -magnitude
-            self.target_angular = angular
+            if heading_error is None:
+                self.target_angular = 0.0
+                return
+            remaining_angle = max(
+                0.0, abs(heading_error) - self.align_exit_angle
+            )
+            requested_speed = min(
+                self.max_angular,
+                max(abs(self.raw_angular), self.align_min_angular),
+            )
+            proportional_speed = 1.5 * remaining_angle
+            braking_speed = math.sqrt(
+                2.0 * self.angular_decel * remaining_angle
+            )
+            magnitude = min(
+                requested_speed,
+                max(
+                    self.align_min_angular,
+                    min(proportional_speed, braking_speed),
+                ),
+            )
+            self.target_angular = self.alignment_direction * magnitude
         else:  # ALIGN_BRAKE or ALIGN_RELEASE
             self.target_linear = 0.0
             self.target_angular = 0.0
 
     def select_motion_state_locked(self, now, explicit_in_place_turn):
         heading_error = self.heading_error_locked(now)
+        abs_error = abs(heading_error) if heading_error is not None else None
+
+        if abs(self.raw_linear) > self.in_place_linear_threshold:
+            self.in_place_turn_blocked = False
+            self.alignment_rotation_limited = False
 
         if self.motion_state == "ALIGN_RELEASE":
+            if explicit_in_place_turn:
+                if (
+                    not self.alignment_rotation_limited
+                    and heading_error is not None
+                    and abs_error >= self.align_enter_angle
+                    and self.align_clearance_available_locked(now)
+                ):
+                    self.in_place_turn_blocked = False
+                else:
+                    self.in_place_turn_blocked = True
             self.apply_motion_state_targets_locked(heading_error)
             return heading_error
 
         if explicit_in_place_turn:
-            self.explicit_align = True
-            new_state = (
-                "ALIGN_BRAKE"
-                if abs(self.output_linear) > self.transition_linear_threshold
-                else "ALIGN"
-            )
-            self.set_motion_state_locked(new_state, heading_error)
+            if heading_error is None:
+                self.in_place_turn_blocked = True
+                if self.motion_state in ("ALIGN", "ALIGN_BRAKE"):
+                    self.set_motion_state_locked("ALIGN_RELEASE")
+                rospy.logwarn_throttle(
+                    1.0,
+                    "[cmd_vel_smoother_obstacle] In-place turn blocked: "
+                    "path/odometry heading is unavailable or stale.",
+                )
+                self.apply_motion_state_targets_locked(heading_error)
+                return heading_error
+
+            if self.alignment_rotation_limited:
+                if now >= self.alignment_retry_after:
+                    self.alignment_rotation_limited = False
+                    self.alignment_rotation = 0.0
+                    self.in_place_turn_blocked = (
+                        abs_error < self.align_enter_angle
+                    )
+                    rospy.loginfo(
+                        "[cmd_vel_smoother_obstacle] Alignment pause ended; "
+                        "re-evaluating current heading and clearance."
+                    )
+                else:
+                    self.in_place_turn_blocked = True
+                    if self.motion_state in ("ALIGN", "ALIGN_BRAKE"):
+                        self.set_motion_state_locked(
+                            "ALIGN_RELEASE", heading_error
+                        )
+                    self.apply_motion_state_targets_locked(heading_error)
+                    return heading_error
+
+            if self.in_place_turn_blocked:
+                if (
+                    abs_error >= self.align_enter_angle
+                    and self.align_clearance_available_locked(now)
+                ):
+                    self.in_place_turn_blocked = False
+                else:
+                    self.apply_motion_state_targets_locked(heading_error)
+                    return heading_error
+
+            is_aligning = self.motion_state in ("ALIGN", "ALIGN_BRAKE")
+            if is_aligning and not self.align_clearance_available_locked(now):
+                self.in_place_turn_blocked = True
+                self.set_motion_state_locked("ALIGN_RELEASE", heading_error)
+                rospy.logwarn_throttle(
+                    1.0,
+                    "[cmd_vel_smoother_obstacle] ALIGN released because "
+                    "rotation clearance is unavailable.",
+                )
+            elif is_aligning and abs_error <= self.alignment_stop_angle_locked():
+                self.in_place_turn_blocked = True
+                self.set_motion_state_locked("ALIGN_RELEASE", heading_error)
+            elif is_aligning or abs_error >= self.align_enter_angle:
+                if self.align_clearance_available_locked(now):
+                    self.in_place_turn_blocked = False
+                    new_state = (
+                        "ALIGN_BRAKE"
+                        if abs(self.output_linear)
+                        > self.transition_linear_threshold
+                        else "ALIGN"
+                    )
+                    self.set_motion_state_locked(new_state, heading_error)
+                else:
+                    self.in_place_turn_blocked = True
+                    rospy.logwarn_throttle(
+                        1.0,
+                        "[cmd_vel_smoother_obstacle] In-place turn blocked: "
+                        "rotation clearance is unavailable.",
+                    )
+            else:
+                self.in_place_turn_blocked = True
+                rospy.logwarn_throttle(
+                    2.0,
+                    "[cmd_vel_smoother_obstacle] In-place turn blocked "
+                    "because heading error is below the alignment threshold.",
+                )
             self.apply_motion_state_targets_locked(heading_error)
             return heading_error
 
-        self.explicit_align = False
         if heading_error is None:
             if self.motion_state in ("ALIGN", "ALIGN_BRAKE"):
+                self.in_place_turn_blocked = True
                 self.set_motion_state_locked("ALIGN_RELEASE")
             else:
                 self.set_motion_state_locked("DRIVE")
             self.apply_motion_state_targets_locked(heading_error)
             return heading_error
 
-        abs_error = abs(heading_error)
         if self.motion_state in ("ALIGN", "ALIGN_BRAKE"):
             if not self.align_clearance_available_locked(now):
                 self.set_motion_state_locked("ALIGN_RELEASE", heading_error)
@@ -417,10 +568,14 @@ class ObstacleCmdVelSmoother:
                     "[cmd_vel_smoother_obstacle] ALIGN released because "
                     "the in-place rotation clearance is unavailable.",
                 )
-            elif abs_error <= self.align_exit_angle:
+            elif abs_error <= self.alignment_stop_angle_locked():
+                self.in_place_turn_blocked = (
+                    abs(self.raw_linear) <= self.in_place_linear_threshold
+                )
                 self.set_motion_state_locked("ALIGN_RELEASE", heading_error)
         elif abs_error >= self.align_enter_angle:
             if self.align_clearance_available_locked(now):
+                self.in_place_turn_blocked = False
                 new_state = (
                     "ALIGN_BRAKE"
                     if abs(self.output_linear)
@@ -454,7 +609,12 @@ class ObstacleCmdVelSmoother:
             self.navigation_ready = ready
             if not ready:
                 self.motion_state = "DRIVE"
-                self.explicit_align = False
+                self.in_place_turn_blocked = False
+                self.alignment_rotation_limited = False
+                self.alignment_rotation = 0.0
+                self.alignment_rotation_limit = 0.0
+                self.alignment_last_yaw_progress_time = None
+                self.alignment_retry_after = 0.0
                 self.raw_linear = 0.0
                 self.raw_angular = 0.0
                 self.target_linear = 0.0
@@ -529,7 +689,12 @@ class ObstacleCmdVelSmoother:
             )
             if stale:
                 self.motion_state = "DRIVE"
-                self.explicit_align = False
+                self.in_place_turn_blocked = False
+                self.alignment_rotation_limited = False
+                self.alignment_rotation = 0.0
+                self.alignment_rotation_limit = 0.0
+                self.alignment_last_yaw_progress_time = None
+                self.alignment_retry_after = 0.0
                 self.raw_linear = 0.0
                 self.raw_angular = 0.0
                 self.target_linear = 0.0
@@ -538,12 +703,86 @@ class ObstacleCmdVelSmoother:
                 self.output_angular = 0.0
             else:
                 heading_error = self.heading_error_locked(now)
+                if self.motion_state in ("ALIGN", "ALIGN_BRAKE"):
+                    abs_error = (
+                        abs(heading_error)
+                        if heading_error is not None
+                        else None
+                    )
+                    if heading_error is None:
+                        self.in_place_turn_blocked = True
+                        self.set_motion_state_locked("ALIGN_RELEASE")
+                        rospy.logwarn_throttle(
+                            1.0,
+                            "[cmd_vel_smoother_obstacle] ALIGN released: "
+                            "path/odometry heading is unavailable or stale.",
+                        )
+                        self.apply_motion_state_targets_locked(None)
+                    elif (
+                        self.alignment_rotation_limit > 0.0
+                        and self.alignment_rotation
+                        >= self.alignment_rotation_limit
+                    ):
+                        self.in_place_turn_blocked = True
+                        self.alignment_rotation_limited = True
+                        self.alignment_retry_after = now + self.align_retry_pause
+                        self.set_motion_state_locked(
+                            "ALIGN_RELEASE", heading_error
+                        )
+                        rospy.logwarn_throttle(
+                            1.0,
+                            "[cmd_vel_smoother_obstacle] ALIGN paused after "
+                            "the rotation budget was exceeded; navigation "
+                            "will be re-evaluated after a brief pause.",
+                        )
+                        self.apply_motion_state_targets_locked(heading_error)
+                    elif (
+                        abs(self.output_angular)
+                        > self.transition_angular_threshold
+                        and self.alignment_last_yaw_progress_time is not None
+                        and now - self.alignment_last_yaw_progress_time
+                        >= self.align_yaw_progress_timeout
+                    ):
+                        self.in_place_turn_blocked = True
+                        self.alignment_rotation_limited = True
+                        self.alignment_retry_after = now + self.align_retry_pause
+                        self.set_motion_state_locked(
+                            "ALIGN_RELEASE", heading_error
+                        )
+                        rospy.logwarn_throttle(
+                            1.0,
+                            "[cmd_vel_smoother_obstacle] ALIGN paused: "
+                            "odometry shows no yaw progress; navigation "
+                            "will be re-evaluated after a brief pause.",
+                        )
+                        self.apply_motion_state_targets_locked(heading_error)
+                    elif not self.align_clearance_available_locked(now):
+                        self.in_place_turn_blocked = True
+                        self.set_motion_state_locked(
+                            "ALIGN_RELEASE", heading_error
+                        )
+                        rospy.logwarn_throttle(
+                            1.0,
+                            "[cmd_vel_smoother_obstacle] ALIGN released: "
+                            "rotation clearance is unavailable.",
+                        )
+                        self.apply_motion_state_targets_locked(heading_error)
+                    elif abs_error <= self.alignment_stop_angle_locked():
+                        self.in_place_turn_blocked = (
+                            abs(self.raw_linear)
+                            <= self.in_place_linear_threshold
+                        )
+                        self.set_motion_state_locked(
+                            "ALIGN_RELEASE", heading_error
+                        )
+                        self.apply_motion_state_targets_locked(heading_error)
                 if (
                     self.motion_state == "ALIGN_BRAKE"
                     and abs(self.output_linear)
                     <= self.transition_linear_threshold
                 ):
                     self.set_motion_state_locked("ALIGN", heading_error)
+                    self.alignment_last_yaw_progress_time = now
                     self.apply_motion_state_targets_locked(heading_error)
                 elif (
                     self.motion_state == "ALIGN_RELEASE"

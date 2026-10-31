@@ -101,6 +101,7 @@ namespace base_local_planner {
        * @param simple_attractor Set this to true to allow simple attraction to a goal point instead of intelligent cost propagation
        * @param y_vels A vector of the y velocities the controller will explore
        * @param angular_sim_granularity The distance between simulation points for angular velocity should be small enough that the robot doesn't hit things
+       * @param prefer_forward_motion If true, only consider in-place rotation when no collision-free forward trajectory exists
        */
       TrajectoryPlanner(WorldModel& world_model, 
           const costmap_2d::Costmap2D& costmap, 
@@ -120,7 +121,8 @@ namespace base_local_planner {
           bool simple_attractor = false,
           std::vector<double> y_vels = std::vector<double>(0),
           double stop_time_buffer = 0.2,
-          double sim_period = 0.1, double angular_sim_granularity = 0.025);
+          double sim_period = 0.1, double angular_sim_granularity = 0.025,
+          bool prefer_forward_motion = false);
 
       /**
        * @brief  Destructs a trajectory controller
@@ -307,6 +309,7 @@ namespace base_local_planner {
       bool heading_scoring_; ///< @brief Should we score based on the rollout approach or the heading approach
       double heading_scoring_timestep_; ///< @brief How far to look ahead in time when we score a heading
       bool simple_attractor_;  ///< @brief Enables simple attraction to a goal point
+      bool prefer_forward_motion_;  ///< @brief Prefer a legal forward arc over every in-place trajectory
 
       std::vector<double> y_vels_; ///< @brief Y velocities to explore
 

@@ -41,11 +41,10 @@ obstacles_voxel_layer:
 
 inflater_layer:
   # The exact 1.52 x 1.38 m footprint still performs hard collision checks.
-  # With 3 cm padding, the lateral inscribed radius is about 0.72 m. A 0.90 m
-  # inflation radius leaves roughly 0.18 m of soft cost beside the body. The
-  # steeper decay lets the planners use that band when a passage is narrow.
-  inflation_radius: 0.90
-  cost_scaling_factor: 10.0
+  # A wider, gradual cost field encourages the global and local planners to
+  # start bending around an obstacle before the footprint reaches it.
+  inflation_radius: 1.50
+  cost_scaling_factor: 4.0
 
 lethal_cost_threshold: 100
 robot_base_frame: base_link

@@ -155,3 +155,4 @@ if __name__ == "__main__":
     rospy.init_node("scan_decay_gate_obstacle")
     ScanDecayGateObstacle()
     rospy.spin()
+

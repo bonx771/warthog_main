@@ -153,7 +153,8 @@ namespace base_local_planner{
       double max_vel_th, double min_vel_th, double min_in_place_vel_th,
       double backup_vel,
       bool dwa, bool heading_scoring, double heading_scoring_timestep, bool meter_scoring, bool simple_attractor,
-      vector<double> y_vels, double stop_time_buffer, double sim_period, double angular_sim_granularity)
+      vector<double> y_vels, double stop_time_buffer, double sim_period, double angular_sim_granularity,
+      bool prefer_forward_motion)
     : path_map_(costmap.getSizeInCellsX(), costmap.getSizeInCellsY()),
       goal_map_(costmap.getSizeInCellsX(), costmap.getSizeInCellsY()),
       costmap_(costmap),
@@ -169,7 +170,8 @@ namespace base_local_planner{
     max_vel_th_(max_vel_th), min_vel_th_(min_vel_th), min_in_place_vel_th_(min_in_place_vel_th),
     backup_vel_(backup_vel),
     dwa_(dwa), heading_scoring_(heading_scoring), heading_scoring_timestep_(heading_scoring_timestep),
-    simple_attractor_(simple_attractor), y_vels_(y_vels), stop_time_buffer_(stop_time_buffer), sim_period_(sim_period)
+    simple_attractor_(simple_attractor), prefer_forward_motion_(prefer_forward_motion),
+    y_vels_(y_vels), stop_time_buffer_(stop_time_buffer), sim_period_(sim_period)
   {
     //the robot is not stuck to begin with
     stuck_left = false;
@@ -663,7 +665,10 @@ namespace base_local_planner{
 
       //if the new trajectory is better... let's take it...
       //note if we can legally rotate in place we prefer to do that rather than move with y velocity
-      if(comp_traj->cost_ >= 0
+      const bool forward_trajectory_available =
+          best_traj->cost_ >= 0.0 && best_traj->xv_ > 0.0;
+      if((!prefer_forward_motion_ || !forward_trajectory_available)
+          && comp_traj->cost_ >= 0
           && (comp_traj->cost_ <= best_traj->cost_ || best_traj->cost_ < 0 || best_traj->yv_ != 0.0)
           && (vtheta_samp > dvtheta || vtheta_samp < -1 * dvtheta)){
         double x_r, y_r, th_r;

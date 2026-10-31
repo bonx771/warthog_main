@@ -196,21 +196,23 @@
       <param name="in_place_linear_threshold" value="0.02" />
       <param name="command_timeout" value="0.50" />
       <param name="smooth_zero_commands" value="true" />
-      <!-- Heading-aware motion states based on the transformed global plan:
-           DRIVE is restored below 25 deg, SLOW_CURVE is entered above 35 deg,
-           and ALIGN is entered above 45 deg. ALIGN exits below 35 deg. -->
+      <!-- Continuously limit curve speed from commanded/path curvature. Keep
+           in-place alignment for plan errors above 95 degrees only. -->
       <param name="heading_control_enabled" value="true" />
       <param name="odom_topic"
              value="/outdoor_waypoint_nav/odometry/filtered" />
       <param name="global_plan_topic"
              value="/move_base/TrajectoryPlannerROS/global_plan" />
-      <param name="heading_lookahead" value="1.0" />
+      <param name="heading_lookahead" value="2.0" />
       <param name="heading_data_timeout" value="0.75" />
       <param name="drive_enter_slow_angle_deg" value="35.0" />
       <param name="slow_exit_drive_angle_deg" value="25.0" />
-      <param name="align_enter_angle_deg" value="45.0" />
-      <param name="align_exit_angle_deg" value="35.0" />
-      <param name="slow_curve_max_linear" value="0.57024" />
+      <param name="align_enter_angle_deg" value="95.0" />
+      <param name="align_exit_angle_deg" value="15.0" />
+      <param name="align_rotation_margin_deg" value="20.0" />
+      <param name="align_yaw_progress_timeout" value="1.5" />
+      <param name="align_retry_pause" value="1.0" />
+      <param name="max_lateral_accel" value="0.30" />
       <param name="transition_linear_threshold" value="0.05" />
       <param name="transition_angular_threshold" value="0.05" />
       <param name="align_min_angular" value="0.36" />

@@ -103,7 +103,7 @@ namespace base_local_planner {
       double sim_time, sim_granularity, angular_sim_granularity;
       int vx_samples, vtheta_samples;
       double path_distance_bias, goal_distance_bias, occdist_scale, heading_lookahead, oscillation_reset_dist, escape_reset_dist, escape_reset_theta;
-      bool holonomic_robot, dwa, simple_attractor, heading_scoring;
+      bool holonomic_robot, dwa, simple_attractor, heading_scoring, prefer_forward_motion;
       double heading_scoring_timestep;
       double max_vel_x, min_vel_x;
       double backup_vel;
@@ -234,6 +234,7 @@ namespace base_local_planner {
       private_nh.param("dwa", dwa, true);
       private_nh.param("heading_scoring", heading_scoring, false);
       private_nh.param("heading_scoring_timestep", heading_scoring_timestep, 0.8);
+      private_nh.param("prefer_forward_motion", prefer_forward_motion, false);
 
       simple_attractor = false;
 
@@ -254,7 +255,11 @@ namespace base_local_planner {
           acc_lim_x_, acc_lim_y_, acc_lim_theta_, sim_time, sim_granularity, vx_samples, vtheta_samples, path_distance_bias,
           goal_distance_bias, occdist_scale, heading_lookahead, oscillation_reset_dist, escape_reset_dist, escape_reset_theta, holonomic_robot,
           max_vel_x, min_vel_x, max_vel_th_, min_vel_th_, min_in_place_vel_th_, backup_vel,
-          dwa, heading_scoring, heading_scoring_timestep, meter_scoring, simple_attractor, y_vels, stop_time_buffer, sim_period_, angular_sim_granularity);
+          dwa, heading_scoring, heading_scoring_timestep, meter_scoring, simple_attractor, y_vels, stop_time_buffer, sim_period_, angular_sim_granularity,
+          prefer_forward_motion);
+
+      ROS_INFO("Trajectory Rollout prefer_forward_motion is %s",
+          prefer_forward_motion ? "enabled" : "disabled");
 
       map_viz_.initialize(name,
                           global_frame_,

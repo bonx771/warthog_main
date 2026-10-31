@@ -91,14 +91,14 @@
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_enabled"
          value="true"
          type="bool" />
-  <!-- IMU-yaw alignment before a segment. Enter above 45 degrees and finish
-       within 35 degrees so control hands off into SLOW_CURVE.
+  <!-- IMU-yaw alignment before a segment. Enter above 95 degrees and finish
+       within 85 degrees so control hands off into SLOW_CURVE.
        The direction is latched so +/-pi noise cannot reverse it. -->
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_angle_threshold"
-         value="0.785"
+         value="1.658"
          type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_exit_angle_threshold"
-         value="0.611"
+         value="1.484"
          type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_min_goal_distance"
          value="0.80"
