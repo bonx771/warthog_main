@@ -67,6 +67,7 @@ std::string preferred_avoidance_turn_topic = "/outdoor_waypoint_nav/preferred_av
 double preferred_avoidance_turn_deadband_deg = 8.0;
 double preferred_avoidance_turn_sign = 1.0;
 std::string waypoint_cmd_topic = "/cmd_vel";
+std::string waypoint_pre_align_cmd_topic = "/cmd_vel";
 bool waypoint_pre_align_enabled = false;
 double waypoint_pre_align_angle_threshold = 0.35;
 double waypoint_pre_align_min_goal_distance = 0.80;
@@ -1929,7 +1930,13 @@ int main(int argc, char** argv)
         100,
         true);
     ros::param::param<std::string>("/outdoor_waypoint_nav/waypoint_cmd_topic", waypoint_cmd_topic, "/cmd_vel");
+    ros::param::param<std::string>(
+        "/outdoor_waypoint_nav/waypoint_pre_align_cmd_topic",
+        waypoint_pre_align_cmd_topic,
+        waypoint_cmd_topic);
     ros::Publisher pubRecoveryCmd = n.advertise<geometry_msgs::Twist>(waypoint_cmd_topic, 10);
+    ros::Publisher pubPreAlignCmd =
+        n.advertise<geometry_msgs::Twist>(waypoint_pre_align_cmd_topic, 10);
 
     //wait for the action server to come up
     while(!ac.waitForServer(ros::Duration(5.0)))
@@ -2147,7 +2154,7 @@ int main(int argc, char** argv)
     {
         ROS_INFO(
             "Coarse waypoint turn enabled: cmd_topic=%s trigger>%.1fdeg exit<=%.1fdeg speed=%.2f..%.2frad/s timeout=%.1fs scan_clearance=%.2fm.",
-            waypoint_cmd_topic.c_str(),
+            waypoint_pre_align_cmd_topic.c_str(),
             std::fabs(waypoint_pre_align_angle_threshold) * 180.0 / M_PI,
             std::fabs(waypoint_pre_align_exit_angle_threshold) * 180.0 / M_PI,
             std::fabs(waypoint_pre_align_min_angular_speed),
@@ -2295,7 +2302,7 @@ int main(int argc, char** argv)
 
         alignTowardWaypointIfNeeded(
             tf_listener,
-            pubRecoveryCmd,
+            pubPreAlignCmd,
             map_point,
             currentWaypointIndex,
             totalWaypoints);

@@ -61,8 +61,8 @@ navigation/navfn/CMakeFiles/navfn_generate_messages_cpp: /home/cuong/warthog/dev
 /home/cuong/warthog/devel/include/navfn/MakeNavPlan.h: /home/cuong/warthog/src/navigation/navfn/srv/MakeNavPlan.srv
 /home/cuong/warthog/devel/include/navfn/MakeNavPlan.h: /opt/ros/noetic/share/geometry_msgs/msg/Pose.msg
 /home/cuong/warthog/devel/include/navfn/MakeNavPlan.h: /opt/ros/noetic/share/geometry_msgs/msg/Quaternion.msg
-/home/cuong/warthog/devel/include/navfn/MakeNavPlan.h: /opt/ros/noetic/share/geometry_msgs/msg/PoseStamped.msg
 /home/cuong/warthog/devel/include/navfn/MakeNavPlan.h: /opt/ros/noetic/share/geometry_msgs/msg/Point.msg
+/home/cuong/warthog/devel/include/navfn/MakeNavPlan.h: /opt/ros/noetic/share/geometry_msgs/msg/PoseStamped.msg
 /home/cuong/warthog/devel/include/navfn/MakeNavPlan.h: /opt/ros/noetic/share/std_msgs/msg/Header.msg
 /home/cuong/warthog/devel/include/navfn/MakeNavPlan.h: /opt/ros/noetic/share/gencpp/msg.h.template
 /home/cuong/warthog/devel/include/navfn/MakeNavPlan.h: /opt/ros/noetic/share/gencpp/srv.h.template

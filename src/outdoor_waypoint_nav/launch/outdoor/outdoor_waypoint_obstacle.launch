@@ -175,6 +175,8 @@
           name="cmd_vel_smoother_obstacle"
           output="screen">
       <param name="input_topic" value="/cmd_vel_raw_obstacle" />
+      <param name="pre_align_input_topic"
+             value="/cmd_vel_pre_align_obstacle" />
       <param name="output_topic" value="/cmd_vel" />
       <param name="frequency" value="30.0" />
       <param name="linear_accel" value="0.50" />
@@ -195,6 +197,9 @@
              type="bool" />
       <param name="in_place_linear_threshold" value="0.02" />
       <param name="command_timeout" value="0.50" />
+      <!-- gps_waypoint publishes pre-align at 20 Hz. A short independent
+           timeout lets move_base take over promptly after the final stop. -->
+      <param name="pre_align_command_timeout" value="0.20" />
       <param name="smooth_zero_commands" value="true" />
       <!-- Continuously limit curve speed from commanded/path curvature. Keep
            in-place alignment for plan errors above 95 degrees only. -->

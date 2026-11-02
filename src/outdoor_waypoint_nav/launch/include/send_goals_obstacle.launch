@@ -28,6 +28,11 @@
   <param name="/outdoor_waypoint_nav/waypoint_cmd_topic"
          value="/cmd_vel_raw_obstacle"
          type="string" />
+  <!-- Pre-align runs before the next move_base goal exists, so it cannot use
+       the planner input whose safety logic requires a fresh global plan. -->
+  <param name="/outdoor_waypoint_nav/waypoint_pre_align_cmd_topic"
+         value="/cmd_vel_pre_align_obstacle"
+         type="string" />
   <!-- A temporary move_base ABORTED result must stop the vehicle and retry the
        same route stage; it must not terminate the waypoint child launch. -->
   <param name="/outdoor_waypoint_nav/navigation_failure_retry_enabled"

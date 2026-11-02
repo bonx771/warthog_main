@@ -56,6 +56,9 @@
   <param name="/outdoor_waypoint_nav/preferred_avoidance_turn_deadband_deg" value="8.0" type="double" />
   <param name="/outdoor_waypoint_nav/preferred_avoidance_turn_sign" value="1.0" type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_cmd_topic" value="/cmd_vel" type="string" />
+  <!-- Keep pre-alignment on the legacy command topic unless a specialized
+       smoother exposes a dedicated, source-aware input for it. -->
+  <param name="/outdoor_waypoint_nav/waypoint_pre_align_cmd_topic" value="/cmd_vel" type="string" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_enabled" value="false" type="bool" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_angle_threshold" value="0.35" type="double" />
   <param name="/outdoor_waypoint_nav/waypoint_pre_align_min_goal_distance" value="0.80" type="double" />
